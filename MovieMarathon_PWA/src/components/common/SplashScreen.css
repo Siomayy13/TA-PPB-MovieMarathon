@@ -1,0 +1,163 @@
+.splash-overlay {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  height: 100dvh;
+  background: radial-gradient(circle at center, #1b2438 0%, #0d111a 60%, #06090f 100%);
+  z-index: 99999;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  cursor: pointer;
+  user-select: none;
+  transition: opacity 0.5s ease, visibility 0.5s ease;
+}
+
+.splash-overlay--fading {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.splash-ambient-glow {
+  position: absolute;
+  width: 480px;
+  height: 480px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(229, 169, 60, 0.15) 0%, transparent 70%);
+  filter: blur(40px);
+  animation: pulseGlow 3s ease-in-out infinite alternate;
+  pointer-events: none;
+}
+
+@keyframes pulseGlow {
+  0% { transform: scale(0.9); opacity: 0.5; }
+  100% { transform: scale(1.1); opacity: 0.9; }
+}
+
+.splash-film-strip {
+  width: 130px;
+  height: 130px;
+  background: #141a29;
+  border: 3px solid #e5a93c;
+  border-radius: 24px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 10px;
+  box-shadow: 0 0 35px rgba(229, 169, 60, 0.35);
+  animation: stripDrop 1s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  z-index: 2;
+}
+
+@keyframes stripDrop {
+  0% { opacity: 0; transform: translateY(-30px) scale(0.85); }
+  100% { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.splash-sprockets {
+  height: 8px;
+  background-image: radial-gradient(circle, #e5a93c 2px, transparent 3px);
+  background-size: 14px 8px;
+  background-repeat: repeat-x;
+  opacity: 0.8;
+}
+
+.splash-frame-inner {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+}
+
+.splash-clapper-icon {
+  animation: iconSpin 4s ease-in-out infinite alternate;
+}
+
+@keyframes iconSpin {
+  0% { transform: rotate(-6deg); }
+  100% { transform: rotate(6deg); }
+}
+
+.splash-brand-block {
+  text-align: center;
+  margin-top: 28px;
+  z-index: 2;
+  animation: fadeInUp 0.8s ease 0.2s both;
+}
+
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(15px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.splash-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(229, 169, 60, 0.12);
+  border: 1px solid rgba(229, 169, 60, 0.3);
+  padding: 4px 12px;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.15em;
+  color: #e5a93c;
+  margin-bottom: 12px;
+}
+
+.splash-title {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: clamp(2.8rem, 8vw, 4.2rem);
+  letter-spacing: 0.06em;
+  margin: 0;
+  color: #ffffff;
+  text-shadow: 0 4px 18px rgba(0, 0, 0, 0.8);
+}
+
+.splash-subtitle {
+  font-size: 0.85rem;
+  letter-spacing: 0.25em;
+  color: #8e9bb0;
+  margin: 6px 0 0;
+  font-weight: 600;
+}
+
+.splash-enter-btn {
+  margin-top: 32px;
+  background: #e5a93c;
+  color: #0e131f;
+  border: none;
+  font-family: inherit;
+  font-size: 0.95rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  padding: 12px 28px;
+  border-radius: 999px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  box-shadow: 0 4px 20px rgba(229, 169, 60, 0.4);
+  transition: all 0.2s ease;
+  z-index: 2;
+  animation: fadeInUp 0.8s ease 0.4s both;
+}
+
+.splash-enter-btn:hover {
+  background: #f5b952;
+  transform: translateY(-2px);
+  box-shadow: 0 6px 25px rgba(229, 169, 60, 0.6);
+}
+
+.splash-click-hint {
+  position: absolute;
+  bottom: 24px;
+  color: #556277;
+  font-size: 0.78rem;
+  letter-spacing: 0.05em;
+  z-index: 2;
+}

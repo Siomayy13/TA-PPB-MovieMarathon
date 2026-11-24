@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" fill="none">
+  <defs>
+    <linearGradient id="filmGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#ff4b4b" />
+      <stop offset="50%" stop-color="#ff7b25" />
+      <stop offset="100%" stop-color="#f5a623" />
+    </linearGradient>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#141a29" />
+      <stop offset="100%" stop-color="#090d16" />
+    </linearGradient>
+  </defs>
+  <!-- Background Circle -->
+  <rect width="512" height="512" rx="128" fill="url(#bgGrad)" />
+  <circle cx="256" cy="256" r="210" stroke="url(#filmGrad)" stroke-width="12" stroke-dasharray="24 16" opacity="0.85" />
+  
+  <!-- Movie Slate Clapper Body -->
+  <rect x="116" y="196" width="280" height="200" rx="18" fill="#1b2438" stroke="#313f5c" stroke-width="6" />
+  
+  <!-- Screen Glow Play icon inside slate -->
+  <polygon points="230,260 230,340 310,300" fill="url(#filmGrad)" />
+  
+  <!-- Clapper Top bar with stripes -->
+  <g transform="rotate(-10 116 190)">
+    <rect x="100" y="150" width="290" height="42" rx="10" fill="#243048" stroke="#ff7b25" stroke-width="4" />
+    <polygon points="120,152 145,152 130,190 105,190" fill="#ff7b25" />
+    <polygon points="170,152 195,152 180,190 155,190" fill="#ff7b25" />
+    <polygon points="220,152 245,152 230,190 205,190" fill="#ff7b25" />
+    <polygon points="270,152 295,152 280,190 255,190" fill="#ff7b25" />
+    <polygon points="320,152 345,152 330,190 305,190" fill="#ff7b25" />
+    <polygon points="370,152 385,152 380,190 355,190" fill="#ff7b25" />
+  </g>
+  
+  <!-- Film Sprocket Dots -->
+  <circle cx="150" cy="365" r="8" fill="#495a7c" />
+  <circle cx="180" cy="365" r="8" fill="#495a7c" />
+  <circle cx="330" cy="365" r="8" fill="#495a7c" />
+  <circle cx="360" cy="365" r="8" fill="#495a7c" />
+</svg>

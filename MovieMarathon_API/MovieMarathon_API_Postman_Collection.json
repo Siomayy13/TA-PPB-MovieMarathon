@@ -1,0 +1,147 @@
+{
+  "info": {
+    "name": "Movie Marathon API - TA PPB",
+    "description": "Koleksi Postman untuk menguji seluruh endpoint RESTful API Movie Marathon (Modul 1 Express.js + Supabase).",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:3000"
+    }
+  ],
+  "item": [
+    {
+      "name": "0. Health Check",
+      "request": {
+        "method": "GET",
+        "url": "{{base_url}}/api/health"
+      }
+    },
+    {
+      "name": "1. Categories",
+      "item": [
+        {
+          "name": "GET All Categories",
+          "request": { "method": "GET", "url": "{{base_url}}/api/categories" }
+        },
+        {
+          "name": "POST Create Category",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Documentary\",\n  \"description\": \"Film dokumenter edukatif dan investigasi\"\n}"
+            },
+            "url": "{{base_url}}/api/categories"
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. Movies",
+      "item": [
+        {
+          "name": "GET All Movies",
+          "request": { "method": "GET", "url": "{{base_url}}/api/movies" }
+        },
+        {
+          "name": "GET Movie By ID",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/api/movies/22222222-2222-4222-8222-222222222201"
+          }
+        },
+        {
+          "name": "POST Create Movie",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Inception\",\n  \"type\": \"Movie\",\n  \"genre\": \"Sci-Fi / Action / Thriller\",\n  \"release_year\": 2010,\n  \"duration\": \"148 mins\",\n  \"rating\": 9.1,\n  \"director\": \"Christopher Nolan\",\n  \"cast\": \"Leonardo DiCaprio, Joseph Gordon-Levitt, Elliot Page\",\n  \"streaming_on\": \"Netflix / HBO Max\",\n  \"description\": \"Seorang pencuri profesional yang memasuki mimpi orang lain mendapat tugas menanamkan ide ke alam bawah sadar.\",\n  \"image_url\": \"https://images.unsplash.com/photo-1451187580459-43490279c0fa?w=800&auto=format&fit=crop&q=80\",\n  \"tags\": [\"Mind-Bending\", \"Sci-Fi\", \"Nolan\"]\n}"
+            },
+            "url": "{{base_url}}/api/movies"
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. Marathons (Paket Marathon)",
+      "item": [
+        {
+          "name": "GET All Marathons",
+          "request": { "method": "GET", "url": "{{base_url}}/api/marathons" }
+        },
+        {
+          "name": "GET Marathon Detail By ID",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/api/marathons/33333333-3333-4333-8333-333333333301"
+          }
+        },
+        {
+          "name": "POST Create Marathon",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Sabtu Malam Santai\",\n  \"theme\": \"Feel-Good Cinema\",\n  \"mood\": \"Santai & Seru\",\n  \"difficulty\": \"Santai\",\n  \"total_duration\": \"4 Jam 10 Menit\",\n  \"description\": \"Tontonan santai akhir pekan bersama keluarga atau teman kos.\",\n  \"snack_recommendation\": \"Popcorn mentega & teh hangat\",\n  \"break_schedule\": \"Istirahat 15 menit setelah film pertama.\",\n  \"movie_ids\": [\n    \"22222222-2222-4222-8222-222222222204\",\n    \"22222222-2222-4222-8222-222222222209\"\n  ]\n}"
+            },
+            "url": "{{base_url}}/api/marathons"
+          }
+        }
+      ]
+    },
+    {
+      "name": "4. Reviews",
+      "item": [
+        {
+          "name": "GET Reviews By Movie",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/api/reviews/movie/22222222-2222-4222-8222-222222222201"
+          }
+        },
+        {
+          "name": "POST Create Review",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"movie_id\": \"22222222-2222-4222-8222-222222222201\",\n  \"user_name\": \"May Triastuti\",\n  \"rating\": 5,\n  \"comment\": \"Drama ini sangat bagus untuk maraton akhir pekan!\"\n}"
+            },
+            "url": "{{base_url}}/api/reviews"
+          }
+        }
+      ]
+    },
+    {
+      "name": "5. Watchlist",
+      "item": [
+        {
+          "name": "GET Watchlist By User",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/api/watchlist?user_identifier=demo-user-01"
+          }
+        },
+        {
+          "name": "POST Toggle Watchlist",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"user_identifier\": \"demo-user-01\",\n  \"movie_id\": \"22222222-2222-4222-8222-222222222202\"\n}"
+            },
+            "url": "{{base_url}}/api/watchlist/toggle"
+          }
+        }
+      ]
+    }
+  ]
+}
