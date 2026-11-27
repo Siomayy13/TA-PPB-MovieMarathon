@@ -10,6 +10,7 @@ import {
   MessageSquare,
 } from 'lucide-react'
 import WatchlistButton from '../common/WatchlistButton'
+import LazyImage from '../common/LazyImage'
 import { formatRating, truncate } from '../../utils/helpers'
 
 export default function TrendingCarousel({ movies = [], onSelect }) {
@@ -166,7 +167,12 @@ export default function TrendingCarousel({ movies = [], onSelect }) {
             if (e.key === 'Enter' && onSelect) onSelect(activeMovie)
           }}
         >
-          <img src={poster} alt={activeMovie.title} className="trending-hero__poster-img" />
+          <LazyImage
+            src={poster}
+            alt={activeMovie.title}
+            className="trending-hero__poster-img"
+            eager
+          />
         </div>
       </div>
 
@@ -190,7 +196,7 @@ export default function TrendingCarousel({ movies = [], onSelect }) {
                 className={`trending-thumb ${isActive ? 'trending-thumb--active' : ''}`}
                 onClick={() => setCurrentIndex(idx)}
               >
-                <img
+                <LazyImage
                   src={
                     m.image_url ||
                     m.image ||
@@ -198,6 +204,7 @@ export default function TrendingCarousel({ movies = [], onSelect }) {
                   }
                   alt={m.title}
                   className="trending-thumb__img"
+                  wrapperClassName="trending-thumb__img-wrap"
                 />
                 <div className="trending-thumb__text">
                   <span className="trending-thumb__rank">

@@ -12,6 +12,7 @@ import {
   Edit2,
   Trash2,
   CheckCircle,
+  Check,
   Minus,
   Plus,
   RotateCcw,
@@ -20,26 +21,116 @@ import {
   LogIn,
   Lock,
   X,
+  Share2,
+  ChevronDown,
+  AlertCircle,
 } from 'lucide-react'
 import WatchlistButton from '../common/WatchlistButton'
+import LazyImage from '../common/LazyImage'
+import { MovieDetailSkeleton } from '../common/SkeletonLoaders'
 import VideoPreviewPlayer from './VideoPreviewPlayer'
 import { useReviews, useCreateReview } from '../../hooks/useReviews'
+import { useLazyList } from '../../hooks/useLazyList'
 import { useAuth } from '../../context/AuthContext'
+import movieService from '../../services/movieService'
 import episodeService from '../../services/episodeService'
 import historyService from '../../services/historyService'
 import watchProgressService from '../../services/watchProgressService'
 import { formatRating } from '../../utils/helpers'
+import { buildMovieShareUrl } from '../../utils/urlRouter'
 
-export default function MovieDetail({ movie, onBack, onEdit, onDelete }) {
+const copyTextToClipboard = async (text) => {
+  if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
+    try {
+      await navigator.clipboard.writeText(text)
+      return true
+    } catch {
+      // Lanjut ke fallback textarea
+    }
+  }
+  try {
+    const textarea = document.createElement('textarea')
+    textarea.value = text
+    textarea.setAttribute('readonly', '')
+    textarea.style.position = 'fixed'
+    textarea.style.opacity = '0'
+    document.body.appendChild(textarea)
+    textarea.select()
+    const ok = document.execCommand('copy')
+    document.body.removeChild(textarea)
+    return ok
+  } catch {
+    return false
+  }
+}
+
+export default function MovieDetail({
+  movie: initialMovie,
+  movieId,
+  onMovieLoaded,
+  onBack,
+  onEdit,
+  onDelete,
+}) {
   const { user, isAuthenticated, isAdmin, openAuthModal } = useAuth()
+  const targetMovieId = movieId || initialMovie?.id || ''
 
-  const poster =
-    movie.image_url ||
-    movie.image ||
-    'https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?w=800&auto=format&fit=crop&q=80'
+  // Direct-link state: muat film berdasarkan ID dari URL jika dibuka langsung di tab baru / refresh
+  const [movie, setMovie] = useState(initialMovie || null)
+  const [loadingMovie, setLoadingMovie] = useState(!initialMovie && Boolean(targetMovieId))
+  const [movieError, setMovieError] = useState('')
 
-  const { reviews, loading: reviewsLoading, refetch: refetchReviews } = useReviews(movie.id)
+  useEffect(() => {
+    if (initialMovie && String(initialMovie.id) === String(targetMovieId)) {
+      setMovie(initialMovie)
+      setLoadingMovie(false)
+      setMovieError('')
+      return undefined
+    }
+    if (!targetMovieId) {
+      setMovie(null)
+      setLoadingMovie(false)
+      setMovieError('ID film tidak valid.')
+      return undefined
+    }
+
+    let active = true
+    const fetchMovieByDirectLink = async () => {
+      try {
+        setLoadingMovie(true)
+        setMovieError('')
+        const res = await movieService.getMovieById(targetMovieId)
+        if (!active) return
+        if (res?.success && res.data) {
+          setMovie(res.data)
+          if (onMovieLoaded) onMovieLoaded(res.data)
+        } else {
+          setMovie(null)
+          setMovieError('Film atau drama tidak ditemukan.')
+        }
+      } catch (err) {
+        if (active) {
+          setMovie(null)
+          setMovieError(err?.message || 'Film atau drama tidak ditemukan atau sudah dihapus.')
+        }
+      } finally {
+        if (active) setLoadingMovie(false)
+      }
+    }
+
+    fetchMovieByDirectLink()
+    return () => {
+      active = false
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [targetMovieId, initialMovie?.id])
+
+  const { reviews, loading: reviewsLoading, refetch: refetchReviews } = useReviews(targetMovieId)
   const { createReview, submitting } = useCreateReview()
+
+  // Share feedback state
+  const [shareToast, setShareToast] = useState('')
+  const [copiedShare, setCopiedShare] = useState(false)
 
   // Episodes & Video Preview state
   const [episodes, setEpisodes] = useState([])
@@ -70,13 +161,41 @@ export default function MovieDetail({ movie, onBack, onEdit, onDelete }) {
 
   // Watch Progress
   const [progress, setProgress] = useState(() =>
-    watchProgressService.getProgress(movie.id, movie.duration),
+    targetMovieId
+      ? watchProgressService.getProgress(targetMovieId, initialMovie?.duration)
+      : { watchedEpisodes: 0, totalEpisodes: 1, completed: false },
   )
 
+  // Lazy rendering daftar episode & ulasan (IntersectionObserver)
+  const {
+    visibleItems: visibleEpisodes,
+    hasMore: hasMoreEpisodes,
+    remainingCount: remainingEpisodes,
+    sentinelRef: episodeSentinelRef,
+    loadMore: loadMoreEpisodes,
+  } = useLazyList(episodes, {
+    initialCount: 10,
+    batchSize: 10,
+    resetKey: String(targetMovieId),
+  })
+
+  const {
+    visibleItems: visibleReviews,
+    hasMore: hasMoreReviews,
+    remainingCount: remainingReviews,
+    sentinelRef: reviewSentinelRef,
+    loadMore: loadMoreReviews,
+  } = useLazyList(reviews, {
+    initialCount: 8,
+    batchSize: 8,
+    resetKey: String(targetMovieId),
+  })
+
   const loadEpisodes = useCallback(async () => {
+    if (!targetMovieId) return
     try {
       setLoadingEpisodes(true)
-      const res = await episodeService.getEpisodes(movie.id)
+      const res = await episodeService.getEpisodes(targetMovieId)
       if (res.success) {
         const list = res.data || []
         setEpisodes(list)
@@ -88,38 +207,39 @@ export default function MovieDetail({ movie, onBack, onEdit, onDelete }) {
     } finally {
       setLoadingEpisodes(false)
     }
-  }, [movie.id])
+  }, [targetMovieId])
 
   useEffect(() => {
+    if (!targetMovieId) return
     setActiveEpisode(null)
-    setProgress(watchProgressService.getProgress(movie.id, movie.duration))
+    setProgress(watchProgressService.getProgress(targetMovieId, movie?.duration))
     loadEpisodes()
-  }, [movie.id, movie.duration, loadEpisodes])
+  }, [targetMovieId, movie?.duration, loadEpisodes])
 
   // Sinkronkan daftar episode yang sudah ditonton dari database watch_history & cache lokal
   useEffect(() => {
-    if (!isAuthenticated || !user?.id) {
+    if (!isAuthenticated || !user?.id || !targetMovieId) {
       setWatchedEpNumbers([])
       return undefined
     }
     let active = true
     const syncWatchedFromDb = async () => {
-      const localSaved = historyService.getWatchedEpisodeNumbers(movie.id)
-      const dbEntry = await historyService.getMovieHistory(movie.id)
+      const localSaved = historyService.getWatchedEpisodeNumbers(targetMovieId)
+      const dbEntry = await historyService.getMovieHistory(targetMovieId)
       if (!active) return
 
       if (dbEntry) {
         const dbLast = Number(dbEntry.last_episode_number) || 0
         const dbTotal = Math.max(Number(dbEntry.total_episodes) || 1, episodes.length, 1)
-        watchProgressService.setProgress(movie.id, dbLast, `${dbTotal} Episodes`)
-        setProgress(watchProgressService.getProgress(movie.id, `${dbTotal} Episodes`))
+        watchProgressService.setProgress(targetMovieId, dbLast, `${dbTotal} Episodes`)
+        setProgress(watchProgressService.getProgress(targetMovieId, `${dbTotal} Episodes`))
 
         if (localSaved && localSaved.length > 0 && dbLast > 0) {
           setWatchedEpNumbers(localSaved)
         } else if (dbLast > 0) {
           const derived = Array.from({ length: dbLast }, (_, i) => i + 1)
           setWatchedEpNumbers(derived)
-          historyService.saveWatchedEpisodeNumbers(movie.id, derived)
+          historyService.saveWatchedEpisodeNumbers(targetMovieId, derived)
         } else {
           setWatchedEpNumbers([])
         }
@@ -133,12 +253,13 @@ export default function MovieDetail({ movie, onBack, onEdit, onDelete }) {
     return () => {
       active = false
     }
-  }, [isAuthenticated, user?.id, movie.id, episodes.length])
+  }, [isAuthenticated, user?.id, targetMovieId, episodes.length])
 
   const effectiveTotalEpisodes = Math.max(episodes.length, progress.totalEpisodes, 1)
 
   const syncProgressToDatabase = useCallback(
     async ({ nextCount, nextWatchedNums, epObj = null, noticeText = '' }) => {
+      if (!movie) return
       const clamped = Math.min(effectiveTotalEpisodes, Math.max(0, nextCount))
       const updated = watchProgressService.setProgress(
         movie.id,
@@ -232,8 +353,48 @@ export default function MovieDetail({ movie, onBack, onEdit, onDelete }) {
     [isAuthenticated, openAuthModal, watchedEpNumbers, syncProgressToDatabase],
   )
 
+  /**
+   * Fitur Bagikan (Web Share API + Fallback Copy Link ke Clipboard & Toast Feedback)
+   */
+  const showShareFeedback = (text, markCopied = false) => {
+    setShareToast(text)
+    if (markCopied) setCopiedShare(true)
+    setTimeout(() => {
+      setShareToast('')
+      setCopiedShare(false)
+    }, 3000)
+  }
+
+  const handleShareMovie = async () => {
+    if (!movie) return
+    const shareUrl = buildMovieShareUrl(movie)
+    const shareData = {
+      title: `${movie.title} — Movie Marathon`,
+      text: `Yuk tonton "${movie.title}"${movie.release_year ? ` (${movie.release_year})` : ''} di Movie Marathon!`,
+      url: shareUrl,
+    }
+
+    if (typeof navigator !== 'undefined' && typeof navigator.share === 'function') {
+      try {
+        await navigator.share(shareData)
+        showShareFeedback('Film berhasil dibagikan!')
+        return
+      } catch {
+        // Jika Web Share API dibatalkan atau gagal, lanjut ke fallback salin link ke clipboard
+      }
+    }
+
+    const copied = await copyTextToClipboard(shareUrl)
+    if (copied) {
+      showShareFeedback('Link film berhasil disalin!', true)
+    } else {
+      showShareFeedback(`Salin link secara manual: ${shareUrl}`)
+    }
+  }
+
   const handleAddEpisode = async (e) => {
     e.preventDefault()
+    if (!movie) return
     setEpError('')
     if (!epForm.title.trim() || !epForm.video_url.trim()) {
       setEpError('Judul episode dan link video wajib diisi.')
@@ -278,6 +439,7 @@ export default function MovieDetail({ movie, onBack, onEdit, onDelete }) {
 
   const handleReviewSubmit = async (e) => {
     e.preventDefault()
+    if (!movie) return
     if (!isAuthenticated) {
       openAuthModal('login')
       return
@@ -300,6 +462,35 @@ export default function MovieDetail({ movie, onBack, onEdit, onDelete }) {
     }
   }
 
+  // Skeleton state saat direct link /film/:id sedang memuat data dari server
+  if (loadingMovie) {
+    return <MovieDetailSkeleton />
+  }
+
+  // Error / not found state jika ID di URL tidak valid atau sudah dihapus
+  if (!movie) {
+    return (
+      <div className="movie-detail">
+        <button type="button" className="detail-back-btn" onClick={onBack}>
+          <ArrowLeft size={18} /> Kembali ke Beranda
+        </button>
+        <div className="status-state status-state--error">
+          <AlertCircle size={36} />
+          <h3>Film atau Drama Tidak Ditemukan</h3>
+          <p>{movieError || 'Tautan film yang Anda buka mungkin sudah tidak tersedia atau dihapus.'}</p>
+          <button type="button" className="btn btn--primary btn--sm" onClick={onBack}>
+            Jelajahi Katalog Film
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  const poster =
+    movie.image_url ||
+    movie.image ||
+    'https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?w=800&auto=format&fit=crop&q=80'
+
   const progressPercent =
     effectiveTotalEpisodes > 0
       ? Math.min(100, Math.round((progress.watchedEpisodes / effectiveTotalEpisodes) * 100))
@@ -312,6 +503,14 @@ export default function MovieDetail({ movie, onBack, onEdit, onDelete }) {
 
   return (
     <div className="movie-detail">
+      {/* Floating Share Toast Feedback */}
+      {shareToast && (
+        <div className="share-floating-toast" role="status" aria-live="polite">
+          <CheckCircle size={16} color="#e5a93c" />
+          <span>{shareToast}</span>
+        </div>
+      )}
+
       <button type="button" className="detail-back-btn" onClick={onBack}>
         <ArrowLeft size={18} /> Kembali ke Katalog
       </button>
@@ -319,7 +518,13 @@ export default function MovieDetail({ movie, onBack, onEdit, onDelete }) {
       {/* Hero Section */}
       <div className="detail-hero">
         <div className="detail-poster-wrap">
-          <img src={poster} alt={movie.title} className="detail-poster" />
+          <LazyImage
+            src={poster}
+            alt={movie.title}
+            className="detail-poster"
+            wrapperClassName="detail-poster-inner"
+            eager
+          />
         </div>
 
         <div className="detail-info">
@@ -385,9 +590,23 @@ export default function MovieDetail({ movie, onBack, onEdit, onDelete }) {
             )}
           </div>
 
-          {/* Action buttons */}
+          {/* Action buttons: Watchlist + Bagikan + Admin Controls */}
           <div className="detail-actions">
             <WatchlistButton movieId={movie.id} />
+
+            <button
+              type="button"
+              className={`btn btn--outline btn--sm share-movie-btn ${
+                copiedShare ? 'share-movie-btn--copied' : ''
+              }`}
+              onClick={handleShareMovie}
+              title="Bagikan tautan langsung ke film ini"
+              aria-label={`Bagikan ${movie.title}`}
+            >
+              {copiedShare ? <Check size={15} /> : <Share2 size={15} />}
+              <span>{copiedShare ? 'Link Disalin' : 'Bagikan'}</span>
+            </button>
+
             {isAdmin && onEdit && (
               <button
                 type="button"
@@ -561,10 +780,11 @@ export default function MovieDetail({ movie, onBack, onEdit, onDelete }) {
           </form>
         )}
 
-        {/* Episode List */}
+        {/* Episode List (Lazy Load bertahap) */}
         {loadingEpisodes ? (
-          <div className="loading-state">
-            <Loader size={18} className="spin" /> <span>Memuat daftar episode...</span>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+            <div className="skeleton-box" style={{ height: '62px', borderRadius: '11px' }} />
+            <div className="skeleton-box" style={{ height: '62px', borderRadius: '11px' }} />
           </div>
         ) : episodes.length === 0 ? (
           <p className="no-reviews">
@@ -572,89 +792,103 @@ export default function MovieDetail({ movie, onBack, onEdit, onDelete }) {
             {isAdmin ? ' Klik "Tambah Episode" untuk menambahkan link video.' : ''}
           </p>
         ) : (
-          <div className="episodes-list">
-            {episodes.map((ep) => {
-              const isPlaying = activeEpisode?.id === ep.id
-              const epWatched = watchedEpNumbers.includes(Number(ep.episode_number) || 1)
-              return (
-                <div
-                  key={ep.id}
-                  className={`episode-row ${isPlaying ? 'episode-row--active' : ''} ${
-                    epWatched ? 'episode-row--watched' : ''
-                  }`}
-                  onClick={() => setActiveEpisode(ep)}
-                  role="button"
-                  tabIndex={0}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') setActiveEpisode(ep)
-                  }}
-                >
-                  <span className="episode-play-circle">
-                    <Play
-                      size={14}
-                      fill={isPlaying ? '#0e131f' : '#e5a93c'}
-                      color={isPlaying ? '#0e131f' : '#e5a93c'}
-                    />
-                  </span>
-                  <div className="episode-row__info">
-                    <div className="episode-row__top">
-                      <span className="episode-num-tag">EP {ep.episode_number}</span>
-                      <strong>{ep.title}</strong>
-                      {isAuthenticated && epWatched && (
-                        <span className="watched-status-pill">
-                          <CheckCircle size={11} /> Sudah Ditonton
-                        </span>
+          <>
+            <div className="episodes-list">
+              {visibleEpisodes.map((ep) => {
+                const isPlaying = activeEpisode?.id === ep.id
+                const epWatched = watchedEpNumbers.includes(Number(ep.episode_number) || 1)
+                return (
+                  <div
+                    key={ep.id}
+                    className={`episode-row ${isPlaying ? 'episode-row--active' : ''} ${
+                      epWatched ? 'episode-row--watched' : ''
+                    }`}
+                    onClick={() => setActiveEpisode(ep)}
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') setActiveEpisode(ep)
+                    }}
+                  >
+                    <span className="episode-play-circle">
+                      <Play
+                        size={14}
+                        fill={isPlaying ? '#0e131f' : '#e5a93c'}
+                        color={isPlaying ? '#0e131f' : '#e5a93c'}
+                      />
+                    </span>
+                    <div className="episode-row__info">
+                      <div className="episode-row__top">
+                        <span className="episode-num-tag">EP {ep.episode_number}</span>
+                        <strong>{ep.title}</strong>
+                        {isAuthenticated && epWatched && (
+                          <span className="watched-status-pill">
+                            <CheckCircle size={11} /> Sudah Ditonton
+                          </span>
+                        )}
+                      </div>
+                      <div className="episode-row__meta">
+                        <span>{ep.duration || '45 mins'}</span>
+                        {ep.synopsis && <span>&bull; {ep.synopsis}</span>}
+                      </div>
+                    </div>
+
+                    <div className="episode-row__actions">
+                      <span className="episode-preview-cta">
+                        {isPlaying ? 'Sedang Diputar' : 'Putar'}
+                      </span>
+
+                      {isAuthenticated && (
+                        <button
+                          type="button"
+                          className={`episode-watch-toggle ${
+                            epWatched ? 'episode-watch-toggle--done' : ''
+                          }`}
+                          disabled={recordingHistory}
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            handleToggleEpisodeWatched(ep, !epWatched, false)
+                          }}
+                          title={
+                            epWatched
+                              ? 'Klik untuk membatalkan status Sudah Ditonton'
+                              : 'Tandai episode ini sudah ditonton'
+                          }
+                        >
+                          <CheckCircle size={13} />
+                          <span>{epWatched ? 'Batalkan' : 'Tandai Selesai'}</span>
+                        </button>
+                      )}
+
+                      {isAdmin && (
+                        <button
+                          type="button"
+                          className="btn btn--danger btn--sm"
+                          onClick={(e) => handleDeleteEpisode(e, ep.id)}
+                          title="Hapus episode"
+                          aria-label={`Hapus ${ep.title}`}
+                        >
+                          <Trash2 size={13} />
+                        </button>
                       )}
                     </div>
-                    <div className="episode-row__meta">
-                      <span>{ep.duration || '45 mins'}</span>
-                      {ep.synopsis && <span>&bull; {ep.synopsis}</span>}
-                    </div>
                   </div>
+                )
+              })}
+            </div>
 
-                  <div className="episode-row__actions">
-                    <span className="episode-preview-cta">
-                      {isPlaying ? 'Sedang Diputar' : 'Putar'}
-                    </span>
-
-                    {isAuthenticated && (
-                      <button
-                        type="button"
-                        className={`episode-watch-toggle ${
-                          epWatched ? 'episode-watch-toggle--done' : ''
-                        }`}
-                        disabled={recordingHistory}
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          handleToggleEpisodeWatched(ep, !epWatched, false)
-                        }}
-                        title={
-                          epWatched
-                            ? 'Klik untuk membatalkan status Sudah Ditonton'
-                            : 'Tandai episode ini sudah ditonton'
-                        }
-                      >
-                        <CheckCircle size={13} />
-                        <span>{epWatched ? 'Batalkan' : 'Tandai Selesai'}</span>
-                      </button>
-                    )}
-
-                    {isAdmin && (
-                      <button
-                        type="button"
-                        className="btn btn--danger btn--sm"
-                        onClick={(e) => handleDeleteEpisode(e, ep.id)}
-                        title="Hapus episode"
-                        aria-label={`Hapus ${ep.title}`}
-                      >
-                        <Trash2 size={13} />
-                      </button>
-                    )}
-                  </div>
-                </div>
-              )
-            })}
-          </div>
+            {hasMoreEpisodes && (
+              <div ref={episodeSentinelRef} className="lazy-load-sentinel">
+                <button
+                  type="button"
+                  className="btn btn--outline btn--sm"
+                  onClick={loadMoreEpisodes}
+                >
+                  <ChevronDown size={14} /> Muat Episode Lainnya ({remainingEpisodes} lagi)
+                </button>
+              </div>
+            )}
+          </>
         )}
       </div>
 
@@ -762,7 +996,7 @@ export default function MovieDetail({ movie, onBack, onEdit, onDelete }) {
         )}
       </div>
 
-      {/* Reviews & Ratings Section (Menghitung Skor Rating & Top 10 Trending Otomatis) */}
+      {/* Reviews & Ratings Section */}
       <div className="detail-section">
         <h2 className="detail-section__title">Ulasan Komunitas &amp; Rating Bintang</h2>
 
@@ -837,40 +1071,54 @@ export default function MovieDetail({ movie, onBack, onEdit, onDelete }) {
           </form>
         )}
 
-        {/* List of Reviews */}
+        {/* List of Reviews (Lazy Load bertahap) */}
         {reviewsLoading ? (
           <div className="loading-state">
             <Loader size={20} className="spin" />
             <span>Memuat ulasan...</span>
           </div>
         ) : reviews.length > 0 ? (
-          <div className="reviews-list">
-            {reviews.map((r) => (
-              <div key={r.id} className="review-card">
-                <div className="review-card__header">
-                  <span className="review-card__user">{r.user_name}</span>
-                  <div className="review-card__stars">
-                    {Array.from({ length: 5 }, (_, i) => (
-                      <Star
-                        key={i}
-                        size={14}
-                        fill={i < r.rating ? '#e5a93c' : 'none'}
-                        stroke={i < r.rating ? '#e5a93c' : '#495a74'}
-                      />
-                    ))}
+          <>
+            <div className="reviews-list">
+              {visibleReviews.map((r) => (
+                <div key={r.id} className="review-card">
+                  <div className="review-card__header">
+                    <span className="review-card__user">{r.user_name}</span>
+                    <div className="review-card__stars">
+                      {Array.from({ length: 5 }, (_, i) => (
+                        <Star
+                          key={i}
+                          size={14}
+                          fill={i < r.rating ? '#e5a93c' : 'none'}
+                          stroke={i < r.rating ? '#e5a93c' : '#495a74'}
+                        />
+                      ))}
+                    </div>
                   </div>
+                  <p className="review-card__comment">{r.comment}</p>
+                  <span className="review-card__date">
+                    {new Date(r.created_at).toLocaleDateString('id-ID', {
+                      year: 'numeric',
+                      month: 'short',
+                      day: 'numeric',
+                    })}
+                  </span>
                 </div>
-                <p className="review-card__comment">{r.comment}</p>
-                <span className="review-card__date">
-                  {new Date(r.created_at).toLocaleDateString('id-ID', {
-                    year: 'numeric',
-                    month: 'short',
-                    day: 'numeric',
-                  })}
-                </span>
+              ))}
+            </div>
+
+            {hasMoreReviews && (
+              <div ref={reviewSentinelRef} className="lazy-load-sentinel">
+                <button
+                  type="button"
+                  className="btn btn--outline btn--sm"
+                  onClick={loadMoreReviews}
+                >
+                  <ChevronDown size={14} /> Muat Ulasan Lainnya ({remainingReviews} lagi)
+                </button>
               </div>
-            ))}
-          </div>
+            )}
+          </>
         ) : (
           <p className="no-reviews">
             Belum ada ulasan untuk judul ini. Jadilah yang pertama mengulas!

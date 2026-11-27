@@ -3,7 +3,8 @@ import { Bookmark, ArrowRight, Lock, LogIn, UserPlus } from 'lucide-react'
 import { useWatchlist } from '../hooks/useWatchlist'
 import { useMovies } from '../hooks/useMovies'
 import { useAuth } from '../context/AuthContext'
-import MovieCard from '../components/movie/MovieCard'
+import LazyMovieGrid from '../components/movie/LazyMovieGrid'
+import { MovieGridSkeleton } from '../components/common/SkeletonLoaders'
 
 export default function WatchlistPage({ onSelectMovie, onNavigateCatalog }) {
   const { isAuthenticated, openAuthModal } = useAuth()
@@ -69,6 +70,8 @@ export default function WatchlistPage({ onSelectMovie, onNavigateCatalog }) {
             </div>
           </div>
 
+          {loading && <MovieGridSkeleton count={4} />}
+
           {!loading && watchlistedMovies.length === 0 && (
             <div className="status-state">
               <Bookmark size={42} color="#495a74" />
@@ -90,12 +93,13 @@ export default function WatchlistPage({ onSelectMovie, onNavigateCatalog }) {
             </div>
           )}
 
-          {watchlistedMovies.length > 0 && (
-            <ul className="movies-grid">
-              {watchlistedMovies.map((movie) => (
-                <MovieCard key={movie.id} movie={movie} onSelect={onSelectMovie} />
-              ))}
-            </ul>
+          {!loading && watchlistedMovies.length > 0 && (
+            <LazyMovieGrid
+              movies={watchlistedMovies}
+              initialCount={8}
+              batchSize={8}
+              onSelect={onSelectMovie}
+            />
           )}
         </>
       )}

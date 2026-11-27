@@ -15,8 +15,11 @@ import {
   X,
   ArrowRight,
   Star,
+  ChevronDown,
 } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
+import { useLazyList } from '../hooks/useLazyList'
+import LazyImage from '../components/common/LazyImage'
 import historyService from '../services/historyService'
 import ConfirmModal from '../components/modals/ConfirmModal'
 import { formatRating } from '../utils/helpers'
@@ -76,6 +79,18 @@ export default function HistoryPage({ onSelectMovie, onNavigateCatalog }) {
     if (activeFilter === 'Semua') return items
     return items.filter((item) => item.watch_status === activeFilter)
   }, [items, activeFilter])
+
+  const {
+    visibleItems: visibleHistoryItems,
+    hasMore: hasMoreHistory,
+    remainingCount: remainingHistory,
+    sentinelRef: historySentinelRef,
+    loadMore: loadMoreHistory,
+  } = useLazyList(filteredItems, {
+    initialCount: 8,
+    batchSize: 8,
+    resetKey: activeFilter,
+  })
 
   const stats = useMemo(() => {
     const total = items.length
@@ -278,36 +293,37 @@ export default function HistoryPage({ onSelectMovie, onNavigateCatalog }) {
               )}
             </div>
           ) : (
-            <div className="history-list">
-              {filteredItems.map((item) => {
-                const m = item.movie || {}
-                const statusClass =
-                  item.watch_status === 'Selesai'
-                    ? 'history-badge--done'
-                    : item.watch_status === 'Ditonton Ulang'
-                      ? 'history-badge--rewatch'
-                      : 'history-badge--watching'
+            <>
+              <div className="history-list">
+                {visibleHistoryItems.map((item) => {
+                  const m = item.movie || {}
+                  const statusClass =
+                    item.watch_status === 'Selesai'
+                      ? 'history-badge--done'
+                      : item.watch_status === 'Ditonton Ulang'
+                        ? 'history-badge--rewatch'
+                        : 'history-badge--watching'
 
-                return (
-                  <article key={item.id} className="history-card">
-                    <div
-                      className="history-card__poster-wrap"
-                      onClick={() => m.id && onSelectMovie && onSelectMovie(m)}
-                      role="button"
-                      tabIndex={0}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter' && m.id && onSelectMovie) onSelectMovie(m)
-                      }}
-                    >
-                      <img
-                        src={
-                          m.image_url ||
-                          'https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?w=400&auto=format&fit=crop&q=80'
-                        }
-                        alt={m.title || 'Film'}
-                        className="history-card__poster"
-                      />
-                    </div>
+                  return (
+                    <article key={item.id} className="history-card">
+                      <div
+                        className="history-card__poster-wrap"
+                        onClick={() => m.id && onSelectMovie && onSelectMovie(m)}
+                        role="button"
+                        tabIndex={0}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' && m.id && onSelectMovie) onSelectMovie(m)
+                        }}
+                      >
+                        <LazyImage
+                          src={
+                            m.image_url ||
+                            'https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?w=400&auto=format&fit=crop&q=80'
+                          }
+                          alt={m.title || 'Film'}
+                          className="history-card__poster"
+                        />
+                      </div>
 
                     <div className="history-card__body">
                       <div className="history-card__top">
@@ -397,8 +413,21 @@ export default function HistoryPage({ onSelectMovie, onNavigateCatalog }) {
                     </div>
                   </article>
                 )
-              })}
-            </div>
+                })}
+              </div>
+
+              {hasMoreHistory && (
+                <div ref={historySentinelRef} className="lazy-load-sentinel">
+                  <button
+                    type="button"
+                    className="btn btn--outline btn--sm"
+                    onClick={loadMoreHistory}
+                  >
+                    <ChevronDown size={14} /> Muat Histori Lainnya ({remainingHistory} lagi)
+                  </button>
+                </div>
+              )}
+            </>
           )}
         </>
       )}

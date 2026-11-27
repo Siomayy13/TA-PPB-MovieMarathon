@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Star, Edit2, Trash2, CheckCircle2, Flame, Clock, Tv } from 'lucide-react'
 import WatchlistButton from '../common/WatchlistButton'
+import LazyImage from '../common/LazyImage'
 import watchProgressService from '../../services/watchProgressService'
 import { formatRating, formatUploadTime, truncate } from '../../utils/helpers'
 
@@ -49,11 +50,11 @@ export default function MovieCard({
       >
         {/* Poster with overlay badges */}
         <div className="movie-card__poster-wrap">
-          <img
+          <LazyImage
             src={poster}
             alt={movie.title}
             className="movie-card__poster"
-            loading="lazy"
+            wrapperClassName="movie-card__poster-inner"
           />
           {trendingRank ? (
             <div className="movie-card__rank-badge">

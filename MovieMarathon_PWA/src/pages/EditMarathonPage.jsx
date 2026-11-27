@@ -335,7 +335,7 @@ export default function EditMarathonPage({ marathon, marathonId, onBack, onSucce
               {selectedMovies.map((movie, idx) => (
                 <div key={movie.id} className="collection-manage-row">
                   <span className="lineup-order">#{idx + 1}</span>
-                  <img src={movie.image_url} alt={movie.title} className="movie-pick-thumb" />
+                  <img src={movie.image_url} alt={movie.title} className="movie-pick-thumb" loading="lazy" decoding="async" />
                   <div className="movie-pick-meta">
                     <strong>{movie.title}</strong>
                     <span>
@@ -409,7 +409,7 @@ export default function EditMarathonPage({ marathon, marathonId, onBack, onSucce
                   className="movie-pick-item"
                   onClick={() => handleAddMovie(movie.id)}
                 >
-                  <img src={movie.image_url} alt={movie.title} className="movie-pick-thumb" />
+                  <img src={movie.image_url} alt={movie.title} className="movie-pick-thumb" loading="lazy" decoding="async" />
                   <div className="movie-pick-meta">
                     <strong>{movie.title}</strong>
                     <span>

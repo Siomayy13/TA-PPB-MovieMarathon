@@ -16,7 +16,8 @@ import {
 import { useGenres } from '../hooks/useGenres'
 import { useAuth } from '../context/AuthContext'
 import genreService from '../services/genreService'
-import MovieCard from '../components/movie/MovieCard'
+import LazyMovieGrid from '../components/movie/LazyMovieGrid'
+import { MovieGridSkeleton } from '../components/common/SkeletonLoaders'
 import PosterCollage from '../components/common/PosterCollage'
 import { sortMovies } from '../utils/helpers'
 
@@ -202,10 +203,7 @@ export default function GenresPage({ onSelectMovie, onEditMovie }) {
         </div>
 
         {loadingMovies ? (
-          <div className="status-state">
-            <Loader size={30} className="spin" />
-            <p>Memuat film bergenre {selectedGenre.name}...</p>
-          </div>
+          <MovieGridSkeleton count={4} />
         ) : filteredMovies.length === 0 ? (
           <div className="status-state">
             <Film size={36} color="#495a74" />
@@ -216,16 +214,14 @@ export default function GenresPage({ onSelectMovie, onEditMovie }) {
             </p>
           </div>
         ) : (
-          <ul className="movies-grid">
-            {filteredMovies.map((movie) => (
-              <MovieCard
-                key={movie.id}
-                movie={movie}
-                onSelect={onSelectMovie}
-                onEdit={isAdmin ? onEditMovie : undefined}
-              />
-            ))}
-          </ul>
+          <LazyMovieGrid
+            movies={filteredMovies}
+            initialCount={8}
+            batchSize={8}
+            resetKey={`${selectedGenre.id}|${searchMovie}|${sortOption}`}
+            onSelect={onSelectMovie}
+            onEdit={isAdmin ? onEditMovie : undefined}
+          />
         )}
       </div>
     )

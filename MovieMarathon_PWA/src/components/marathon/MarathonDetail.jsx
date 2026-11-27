@@ -18,10 +18,13 @@ import {
 import marathonService from '../../services/marathonService'
 import { useAuth } from '../../context/AuthContext'
 import PosterCollage from '../common/PosterCollage'
+import LazyImage from '../common/LazyImage'
+import { MovieDetailSkeleton } from '../common/SkeletonLoaders'
 import { formatRating } from '../../utils/helpers'
 
 export default function MarathonDetail({
   marathon,
+  marathonId,
   onBack,
   onSelectMovie,
   onEdit,
@@ -29,13 +32,37 @@ export default function MarathonDetail({
   onUpdated,
 }) {
   const { isAdmin } = useAuth()
-  const [currentMarathon, setCurrentMarathon] = useState(marathon)
+  const [currentMarathon, setCurrentMarathon] = useState(marathon || null)
+  const [loadingMarathon, setLoadingMarathon] = useState(!marathon && Boolean(marathonId))
   const [completedIds, setCompletedIds] = useState([])
   const [removingMovieId, setRemovingMovieId] = useState(null)
 
   useEffect(() => {
-    setCurrentMarathon(marathon)
-  }, [marathon])
+    if (marathon) {
+      setCurrentMarathon(marathon)
+      setLoadingMarathon(false)
+      return undefined
+    }
+    if (!marathonId) return undefined
+    let active = true
+    const loadById = async () => {
+      try {
+        setLoadingMarathon(true)
+        const res = await marathonService.getMarathonById(marathonId)
+        if (active && res?.success) {
+          setCurrentMarathon(res.data)
+        }
+      } catch {
+        if (active) setCurrentMarathon(null)
+      } finally {
+        if (active) setLoadingMarathon(false)
+      }
+    }
+    loadById()
+    return () => {
+      active = false
+    }
+  }, [marathon, marathonId])
 
   useEffect(() => {
     if (currentMarathon?.id) {
@@ -73,6 +100,28 @@ export default function MarathonDetail({
     } finally {
       setRemovingMovieId(null)
     }
+  }
+
+  if (loadingMarathon) {
+    return <MovieDetailSkeleton />
+  }
+
+  if (!currentMarathon) {
+    return (
+      <div className="movie-detail">
+        <button type="button" className="detail-back-btn" onClick={onBack}>
+          <ArrowLeft size={18} /> Kembali ke Collections
+        </button>
+        <div className="status-state">
+          <Film size={36} color="#495a74" />
+          <h3>Collection tidak ditemukan</h3>
+          <p>Collection yang Anda buka tidak tersedia atau sudah dihapus.</p>
+          <button type="button" className="btn btn--primary btn--sm" onClick={onBack}>
+            Lihat Semua Collections
+          </button>
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -242,11 +291,11 @@ export default function MarathonDetail({
 
                   <span className="lineup-order">#{movie.watch_order || idx + 1}</span>
 
-                  <img
+                  <LazyImage
                     src={movie.image_url}
                     alt={movie.title}
                     className="lineup-thumb"
-                    loading="lazy"
+                    wrapperClassName="lineup-thumb-wrap"
                   />
 
                   <div className="lineup-info">

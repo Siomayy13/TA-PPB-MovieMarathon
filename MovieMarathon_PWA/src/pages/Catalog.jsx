@@ -2,7 +2,6 @@ import { useState, useMemo } from 'react'
 import {
   Plus,
   RefreshCw,
-  Loader,
   AlertCircle,
   Film,
   Flame,
@@ -14,10 +13,10 @@ import {
 } from 'lucide-react'
 import { useMovies, useTrendingMovies } from '../hooks/useMovies'
 import { useAuth } from '../context/AuthContext'
-import MovieCard from '../components/movie/MovieCard'
-import MovieDetail from '../components/movie/MovieDetail'
+import LazyMovieGrid from '../components/movie/LazyMovieGrid'
 import TrendingCarousel from '../components/movie/TrendingCarousel'
 import AdvancedFilter from '../components/common/AdvancedFilter'
+import { MovieGridSkeleton } from '../components/common/SkeletonLoaders'
 import ConfirmModal from '../components/modals/ConfirmModal'
 import movieService from '../services/movieService'
 import {
@@ -39,15 +38,13 @@ export default function Catalog({ onNavigate }) {
   const [sortKey, setSortKey] = useState('rating')
   const [sortOrder, setSortOrder] = useState('desc')
 
-  // Selected for detail view
-  const [selectedMovie, setSelectedMovie] = useState(null)
-
   // Delete modal state
   const [deleteTarget, setDeleteTarget] = useState(null)
   const [deleting, setDeleting] = useState(false)
   const [deleteError, setDeleteError] = useState('')
 
   const categories = useMemo(() => extractCategories(movies), [movies])
+  const filterKey = `${search}|${activeCategory}|${activeStatus}|${sortKey}|${sortOrder}`
 
   // Filtered base list (search + category + status)
   const filteredMovies = useMemo(() => {
@@ -107,6 +104,12 @@ export default function Catalog({ onNavigate }) {
     return sortMovies(base, sortKey, sortOrder)
   }, [movies, activeCategory, sortKey, sortOrder])
 
+  const handleSelectMovie = (movie) => {
+    if (onNavigate && movie) {
+      onNavigate('Detail', movie)
+    }
+  }
+
   const handleDelete = async () => {
     if (!deleteTarget) return
     try {
@@ -123,50 +126,28 @@ export default function Catalog({ onNavigate }) {
     }
   }
 
-  // If in detail mode
-  if (selectedMovie) {
-    return (
-      <MovieDetail
-        movie={selectedMovie}
-        onBack={() => {
-          setSelectedMovie(null)
-          refetch()
-          refetchTrending()
-        }}
-        onEdit={isAdmin && onNavigate ? (m) => onNavigate('Edit', m) : undefined}
-        onDelete={
-          isAdmin
-            ? (m) => {
-                setSelectedMovie(null)
-                setDeleteTarget(m)
-              }
-            : undefined
-        }
-      />
-    )
-  }
-
-  const renderMovieGrid = (items, { showRank = false, showUploadMeta = false } = {}) => (
-    <ul className="movies-grid">
-      {items.map((movie, idx) => (
-        <MovieCard
-          key={movie.id}
-          movie={movie}
-          trendingRank={showRank ? movie.trending_rank || idx + 1 : null}
-          showUploadMeta={showUploadMeta}
-          onSelect={setSelectedMovie}
-          onEdit={isAdmin && onNavigate ? (m) => onNavigate('Edit', m) : undefined}
-          onDelete={isAdmin ? setDeleteTarget : undefined}
-        />
-      ))}
-    </ul>
+  const renderMovieGrid = (
+    items,
+    { showRank = false, showUploadMeta = false, initialCount = 8 } = {},
+  ) => (
+    <LazyMovieGrid
+      movies={items}
+      initialCount={initialCount}
+      batchSize={8}
+      resetKey={filterKey}
+      showRank={showRank}
+      showUploadMeta={showUploadMeta}
+      onSelect={handleSelectMovie}
+      onEdit={isAdmin && onNavigate ? (m) => onNavigate('Edit', m) : undefined}
+      onDelete={isAdmin ? setDeleteTarget : undefined}
+    />
   )
 
   return (
     <div className="catalog-page">
       {/* BAGIAN 1 (PALING ATAS): Hero Carousel Top 10 Trending Otomatis */}
       {!loading && showThreeSections && trendingMovies.length > 0 && (
-        <TrendingCarousel movies={trendingMovies} onSelect={setSelectedMovie} />
+        <TrendingCarousel movies={trendingMovies} onSelect={handleSelectMovie} />
       )}
 
       {/* Toolbar & Kontrol Katalog */}
@@ -210,13 +191,8 @@ export default function Catalog({ onNavigate }) {
         }}
       />
 
-      {/* Loading state */}
-      {loading && (
-        <div className="status-state">
-          <Loader size={32} className="spin" />
-          <p>Memuat katalog film dan drama...</p>
-        </div>
-      )}
+      {/* Skeleton Loading State (tanpa layout shift) */}
+      {loading && <MovieGridSkeleton count={8} />}
 
       {/* Error state */}
       {!loading && error && movies.length === 0 && (
@@ -270,7 +246,7 @@ export default function Catalog({ onNavigate }) {
                 </div>
                 <span className="count-badge">Top {trendingMovies.length}</span>
               </div>
-              {renderMovieGrid(trendingMovies, { showRank: true })}
+              {renderMovieGrid(trendingMovies, { showRank: true, initialCount: 8 })}
             </section>
           )}
 
@@ -297,7 +273,7 @@ export default function Catalog({ onNavigate }) {
                   <Radio size={13} /> Filter Ongoing
                 </button>
               </div>
-              {renderMovieGrid(recentlyUploadedMovies, { showUploadMeta: true })}
+              {renderMovieGrid(recentlyUploadedMovies, { showUploadMeta: true, initialCount: 8 })}
             </section>
           )}
 
@@ -324,7 +300,7 @@ export default function Catalog({ onNavigate }) {
                   <CheckCircle2 size={13} /> Lihat Khusus Tamat ({completedMovies.length})
                 </button>
               </div>
-              {renderMovieGrid(completedMovies)}
+              {renderMovieGrid(completedMovies, { initialCount: 8 })}
             </section>
           )}
         </div>
@@ -375,7 +351,7 @@ export default function Catalog({ onNavigate }) {
               </button>
             )}
           </div>
-          {renderMovieGrid(filteredMovies)}
+          {renderMovieGrid(filteredMovies, { initialCount: 12 })}
         </section>
       )}
 

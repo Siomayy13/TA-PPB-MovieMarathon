@@ -23,17 +23,53 @@ import ConfirmModal from './components/modals/ConfirmModal'
 import AuthModal from './components/modals/AuthModal'
 import movieService from './services/movieService'
 import marathonService from './services/marathonService'
+import {
+  parseRouteFromLocation,
+  getPathForTab,
+  getMovieDetailPath,
+  getCollectionDetailPath,
+  pushRoute,
+} from './utils/urlRouter'
 import './App.css'
+
+const DEFAULT_TITLE = 'Movie Marathon — Drama, Movie, Episode & Collections'
 
 function AppShell({ logoutConfirmOpen, onCloseLogoutConfirm }) {
   const { isAdmin, isAuthenticated, openAuthModal, logout } = useAuth()
 
-  const [showSplash, setShowSplash] = useState(true)
-  const [activeTab, setActiveTab] = useState('Catalog')
+  // Baca URL awal agar direct link (/film/:id, /collections/:id, atau tab) langsung terbuka
+  const [initialRoute] = useState(() => parseRouteFromLocation())
+
+  // Lewati splash screen jika user langsung membuka direct link film/collection agar instan
+  const [showSplash, setShowSplash] = useState(
+    () => initialRoute.type !== 'movie' && initialRoute.type !== 'collection',
+  )
+
+  const [activeTab, setActiveTab] = useState(() =>
+    initialRoute.type === 'collection'
+      ? 'Marathons'
+      : initialRoute.type === 'tab'
+        ? initialRoute.tab
+        : 'Catalog',
+  )
+
   // 'list' | 'create' | 'edit' | 'detail' | 'marathon-detail' | 'create-marathon' | 'edit-marathon'
-  const [mode, setMode] = useState('list')
+  const [mode, setMode] = useState(() =>
+    initialRoute.type === 'movie'
+      ? 'detail'
+      : initialRoute.type === 'collection'
+        ? 'marathon-detail'
+        : 'list',
+  )
+
   const [selectedMovie, setSelectedMovie] = useState(null)
+  const [selectedMovieId, setSelectedMovieId] = useState(() =>
+    initialRoute.type === 'movie' ? initialRoute.movieId : null,
+  )
   const [selectedMarathon, setSelectedMarathon] = useState(null)
+  const [selectedMarathonId, setSelectedMarathonId] = useState(() =>
+    initialRoute.type === 'collection' ? initialRoute.marathonId : null,
+  )
   const [editingMovie, setEditingMovie] = useState(null)
   const [editingMarathon, setEditingMarathon] = useState(null)
 
@@ -42,8 +78,49 @@ function AppShell({ logoutConfirmOpen, onCloseLogoutConfirm }) {
   const [deleteType, setDeleteType] = useState('movie')
   const [deleting, setDeleting] = useState(false)
 
+  // Perbarui judul tab browser sesuai halaman aktif
   useEffect(() => {
-    document.title = 'Movie Marathon — Drama, Movie, Episode & Collections'
+    if (mode === 'detail' && selectedMovie?.title) {
+      document.title = `${selectedMovie.title} — Movie Marathon`
+    } else if (mode === 'marathon-detail' && selectedMarathon?.title) {
+      document.title = `${selectedMarathon.title} — Movie Marathon`
+    } else {
+      document.title = DEFAULT_TITLE
+    }
+  }, [mode, selectedMovie, selectedMarathon])
+
+  // Sinkronkan tombol Back / Forward browser (History API popstate)
+  useEffect(() => {
+    const handlePopState = () => {
+      const next = parseRouteFromLocation()
+      if (next.type === 'movie') {
+        setSelectedMovieId(next.movieId)
+        setSelectedMovie((prev) =>
+          prev && String(prev.id) === String(next.movieId) ? prev : null,
+        )
+        setMode('detail')
+      } else if (next.type === 'collection') {
+        setSelectedMarathonId(next.marathonId)
+        setSelectedMarathon((prev) =>
+          prev && String(prev.id) === String(next.marathonId) ? prev : null,
+        )
+        setActiveTab('Marathons')
+        setMode('marathon-detail')
+      } else {
+        setActiveTab(next.tab)
+        setMode('list')
+        setSelectedMovie(null)
+        setSelectedMovieId(null)
+        setSelectedMarathon(null)
+        setSelectedMarathonId(null)
+        setEditingMovie(null)
+        setEditingMarathon(null)
+      }
+      window.scrollTo({ top: 0, behavior: 'auto' })
+    }
+
+    window.addEventListener('popstate', handlePopState)
+    return () => window.removeEventListener('popstate', handlePopState)
   }, [])
 
   const scrollTop = () => window.scrollTo({ top: 0, behavior: 'smooth' })
@@ -78,40 +155,62 @@ function AppShell({ logoutConfirmOpen, onCloseLogoutConfirm }) {
       setMode('edit-marathon')
       scrollTop()
     } else if (destination === 'Detail') {
-      setSelectedMovie(payload)
+      const movieObj = typeof payload === 'object' ? payload : null
+      const movieId = movieObj ? movieObj.id : payload
+      if (!movieId) return
+      setSelectedMovie(movieObj)
+      setSelectedMovieId(String(movieId))
       setMode('detail')
+      pushRoute(getMovieDetailPath(movieId))
       scrollTop()
     } else if (destination === 'MarathonDetail') {
-      setSelectedMarathon(payload)
+      const marObj = typeof payload === 'object' ? payload : null
+      const marId = marObj ? marObj.id : payload
+      if (!marId) return
+      setSelectedMarathon(marObj)
+      setSelectedMarathonId(String(marId))
+      setActiveTab('Marathons')
       setMode('marathon-detail')
+      pushRoute(getCollectionDetailPath(marId))
       scrollTop()
     } else {
       setActiveTab(destination)
       setMode('list')
       setSelectedMovie(null)
+      setSelectedMovieId(null)
       setSelectedMarathon(null)
+      setSelectedMarathonId(null)
       setEditingMovie(null)
       setEditingMarathon(null)
+      pushRoute(getPathForTab(destination))
       scrollTop()
     }
   }
 
   const handleBackToList = () => {
-    if (mode === 'detail' && selectedMarathon && activeTab === 'Marathons') {
+    if (mode === 'detail' && (selectedMarathon || selectedMarathonId) && activeTab === 'Marathons') {
+      const targetId = selectedMarathon?.id || selectedMarathonId
       setSelectedMovie(null)
+      setSelectedMovieId(null)
       setMode('marathon-detail')
+      if (targetId) pushRoute(getCollectionDetailPath(targetId))
       return
     }
-    if (mode === 'edit-marathon' && selectedMarathon) {
+    if (mode === 'edit-marathon' && (selectedMarathon || selectedMarathonId)) {
+      const targetId = selectedMarathon?.id || selectedMarathonId
       setEditingMarathon(null)
       setMode('marathon-detail')
+      if (targetId) pushRoute(getCollectionDetailPath(targetId))
       return
     }
     setMode('list')
     setSelectedMovie(null)
+    setSelectedMovieId(null)
     setSelectedMarathon(null)
+    setSelectedMarathonId(null)
     setEditingMovie(null)
     setEditingMarathon(null)
+    pushRoute(getPathForTab(activeTab))
   }
 
   const handleGlobalDelete = async () => {
@@ -122,14 +221,18 @@ function AppShell({ logoutConfirmOpen, onCloseLogoutConfirm }) {
         await marathonService.deleteMarathon(deleteTarget.id)
         setDeleteTarget(null)
         setSelectedMarathon(null)
+        setSelectedMarathonId(null)
         setMode('list')
         setActiveTab('Marathons')
+        pushRoute(getPathForTab('Marathons'))
       } else {
         await movieService.deleteMovie(deleteTarget.id)
         setDeleteTarget(null)
         setSelectedMovie(null)
+        setSelectedMovieId(null)
         setMode('list')
         setActiveTab('Catalog')
+        pushRoute(getPathForTab('Catalog'))
       }
     } catch (err) {
       alert(err.message || 'Gagal menghapus data.')
@@ -143,9 +246,12 @@ function AppShell({ logoutConfirmOpen, onCloseLogoutConfirm }) {
     onCloseLogoutConfirm()
     setMode('list')
     setSelectedMovie(null)
+    setSelectedMovieId(null)
     setSelectedMarathon(null)
+    setSelectedMarathonId(null)
     setEditingMovie(null)
     setEditingMarathon(null)
+    pushRoute(getPathForTab(activeTab))
   }
 
   return (
@@ -167,8 +273,7 @@ function AppShell({ logoutConfirmOpen, onCloseLogoutConfirm }) {
           <CreateMoviePage
             onBack={handleBackToList}
             onSuccess={() => {
-              handleBackToList()
-              setActiveTab('Catalog')
+              handleNavigate('Catalog')
             }}
           />
         )}
@@ -178,9 +283,12 @@ function AppShell({ logoutConfirmOpen, onCloseLogoutConfirm }) {
             movie={editingMovie}
             movieId={editingMovie?.id}
             onBack={handleBackToList}
-            onSuccess={() => {
-              handleBackToList()
-              setActiveTab('Catalog')
+            onSuccess={(updated) => {
+              if (updated?.id) {
+                handleNavigate('Detail', updated)
+              } else {
+                handleNavigate('Catalog')
+              }
             }}
           />
         )}
@@ -203,8 +311,10 @@ function AppShell({ logoutConfirmOpen, onCloseLogoutConfirm }) {
               setEditingMarathon(null)
               if (updated) {
                 setSelectedMarathon(updated)
+                setSelectedMarathonId(String(updated.id))
                 setActiveTab('Marathons')
                 setMode('marathon-detail')
+                pushRoute(getCollectionDetailPath(updated.id))
               } else {
                 handleNavigate('Marathons')
               }
@@ -212,9 +322,11 @@ function AppShell({ logoutConfirmOpen, onCloseLogoutConfirm }) {
           />
         )}
 
-        {mode === 'detail' && selectedMovie && (
+        {mode === 'detail' && (selectedMovie || selectedMovieId) && (
           <MovieDetail
             movie={selectedMovie}
+            movieId={selectedMovieId || selectedMovie?.id}
+            onMovieLoaded={(loaded) => setSelectedMovie(loaded)}
             onBack={handleBackToList}
             onEdit={isAdmin ? (m) => handleNavigate('Edit', m) : undefined}
             onDelete={
@@ -228,9 +340,10 @@ function AppShell({ logoutConfirmOpen, onCloseLogoutConfirm }) {
           />
         )}
 
-        {mode === 'marathon-detail' && selectedMarathon && (
+        {mode === 'marathon-detail' && (selectedMarathon || selectedMarathonId) && (
           <MarathonDetail
             marathon={selectedMarathon}
+            marathonId={selectedMarathonId || selectedMarathon?.id}
             onBack={() => handleNavigate('Marathons')}
             onSelectMovie={(m) => handleNavigate('Detail', m)}
             onEdit={isAdmin ? (mar) => handleNavigate('EditMarathon', mar) : undefined}

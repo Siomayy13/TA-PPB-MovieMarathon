@@ -433,7 +433,13 @@ export default function CreateMarathonPage({ onBack, onSuccess }) {
                   className={`movie-pick-item ${isSelected ? 'movie-pick-item--selected' : ''}`}
                   onClick={() => toggleMovieId(movie.id)}
                 >
-                  <img src={movie.image_url} alt={movie.title} className="movie-pick-thumb" />
+                  <img
+                    src={movie.image_url}
+                    alt={movie.title}
+                    className="movie-pick-thumb"
+                    loading="lazy"
+                    decoding="async"
+                  />
                   <div className="movie-pick-meta">
                     <strong>{movie.title}</strong>
                     <span>

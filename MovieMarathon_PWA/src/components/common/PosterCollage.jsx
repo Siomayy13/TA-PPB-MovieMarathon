@@ -1,8 +1,9 @@
 import { Film } from 'lucide-react'
+import LazyImage from './LazyImage'
 
 /**
  * PosterCollage — Menampilkan poster dari 1 hingga 4 film terkait secara konsisten
- * pada kartu Genre maupun Collections (tidak perlu menampilkan semua poster).
+ * pada kartu Genre maupun Collections dengan lazy loading gambar + shimmer skeleton.
  */
 export default function PosterCollage({ posters = [], fallbackUrl = '', alt = 'Poster' }) {
   const uniquePosters = Array.from(new Set((posters || []).filter(Boolean))).slice(0, 4)
@@ -11,7 +12,12 @@ export default function PosterCollage({ posters = [], fallbackUrl = '', alt = 'P
     if (fallbackUrl) {
       return (
         <div className="poster-collage poster-collage--single">
-          <img src={fallbackUrl} alt={alt} className="poster-collage__img" loading="lazy" />
+          <LazyImage
+            src={fallbackUrl}
+            alt={alt}
+            className="poster-collage__img"
+            wrapperClassName="poster-collage__cell"
+          />
         </div>
       )
     }
@@ -34,14 +40,13 @@ export default function PosterCollage({ posters = [], fallbackUrl = '', alt = 'P
   return (
     <div className={`poster-collage ${layoutClass}`}>
       {uniquePosters.map((src, idx) => (
-        <div key={`${src}-${idx}`} className="poster-collage__cell">
-          <img
-            src={src}
-            alt={`${alt} poster ${idx + 1}`}
-            className="poster-collage__img"
-            loading="lazy"
-          />
-        </div>
+        <LazyImage
+          key={`${src}-${idx}`}
+          src={src}
+          alt={`${alt} poster ${idx + 1}`}
+          className="poster-collage__img"
+          wrapperClassName="poster-collage__cell"
+        />
       ))}
     </div>
   )
