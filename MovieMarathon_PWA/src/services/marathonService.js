@@ -23,7 +23,7 @@ const saveStoredMarathons = (list) => {
   try {
     localStorage.setItem(LOCAL_MARATHONS_KEY, JSON.stringify(list))
   } catch (err) {
-    console.warn('Gagal menyimpan cache paket marathon:', err)
+    console.warn('Gagal menyimpan cache collection:', err)
   }
 }
 
@@ -37,9 +37,16 @@ export const normalizeMarathon = (item) => {
       }))
     : []
 
+  const samplePosters = Array.isArray(item.sample_posters) && item.sample_posters.length > 0
+    ? item.sample_posters.filter(Boolean).slice(0, 4)
+    : movies
+        .map((m) => m.image_url)
+        .filter(Boolean)
+        .slice(0, 4)
+
   return {
     id: item.id || `mar-${Date.now()}`,
-    title: item.title || 'Paket Marathon',
+    title: item.title || 'Collection',
     theme: item.theme || 'Curated Collection',
     mood: item.mood || 'Seru & Santai',
     difficulty: 'Collection',
@@ -48,9 +55,10 @@ export const normalizeMarathon = (item) => {
     snack_recommendation: item.snack_recommendation || 'Popcorn & minuman favorit',
     break_schedule: item.break_schedule || 'Istirahat 15 menit setiap jeda film/episode.',
     cover_url:
+      samplePosters[0] ||
       item.cover_url ||
-      movies[0]?.image_url ||
       'https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?w=800&auto=format&fit=crop&q=80',
+    sample_posters: samplePosters,
     movie_count: item.movie_count ?? movies.length,
     movies,
     created_at: item.created_at || new Date().toISOString(),
@@ -93,22 +101,18 @@ class MarathonService {
     if (found) {
       return { success: true, data: normalizeMarathon(found), source: 'local' }
     }
-    throw new Error('Paket marathon tidak ditemukan.')
+    throw new Error('Collection tidak ditemukan.')
   }
 
   async createMarathon(payload, selectedMovies = []) {
     if (BASE_URL) {
-      try {
-        const res = await apiClient.post('/marathons', payload)
-        if (res && res.id) {
-          const normalized = normalizeMarathon(res)
-          const cached = getStoredMarathons()
-          cached.unshift(normalized)
-          saveStoredMarathons(cached)
-          return { success: true, data: normalized, source: 'api' }
-        }
-      } catch (err) {
-        console.info('[MarathonService] API gagal, menyimpan paket ke lokal:', err.message)
+      const res = await apiClient.post('/marathons', payload)
+      if (res && res.id) {
+        const normalized = normalizeMarathon(res)
+        const cached = getStoredMarathons()
+        cached.unshift(normalized)
+        saveStoredMarathons(cached)
+        return { success: true, data: normalized, source: 'api' }
       }
     }
 
@@ -129,21 +133,70 @@ class MarathonService {
     return { success: true, data: localCreated, source: 'local' }
   }
 
-  async deleteMarathon(id) {
-    const cached = getStoredMarathons().filter((item) => String(item.id) !== String(id))
-    saveStoredMarathons(cached)
-
+  async updateMarathon(id, payload, selectedMovies = []) {
     if (BASE_URL) {
-      try {
-        await apiClient.delete(`/marathons/${id}`)
-      } catch {
-        // ignore saat offline
+      const res = await apiClient.put(`/marathons/${id}`, payload)
+      if (res && res.id) {
+        const normalized = normalizeMarathon(res)
+        const cached = getStoredMarathons()
+        const idx = cached.findIndex((item) => String(item.id) === String(id))
+        if (idx !== -1) cached[idx] = normalized
+        else cached.unshift(normalized)
+        saveStoredMarathons(cached)
+        return { success: true, data: normalized, source: 'api' }
       }
     }
+
+    const cached = getStoredMarathons()
+    const idx = cached.findIndex((item) => String(item.id) === String(id))
+    const updated = normalizeMarathon({
+      ...(idx !== -1 ? cached[idx] : {}),
+      ...payload,
+      id,
+      movies: selectedMovies.map((m, i) => ({
+        ...m,
+        watch_order: i + 1,
+        note: `Urutan tonton #${i + 1}`,
+      })),
+    })
+    if (idx !== -1) cached[idx] = updated
+    else cached.unshift(updated)
+    saveStoredMarathons(cached)
+    return { success: true, data: updated, source: 'local' }
+  }
+
+  async addMovieToMarathon(marathonId, movieId, note = '') {
+    const res = await apiClient.post(`/marathons/${marathonId}/movies`, {
+      movie_id: movieId,
+      note,
+    })
+    const normalized = normalizeMarathon(res)
+    const cached = getStoredMarathons()
+    const idx = cached.findIndex((item) => String(item.id) === String(marathonId))
+    if (idx !== -1) cached[idx] = normalized
+    saveStoredMarathons(cached)
+    return { success: true, data: normalized }
+  }
+
+  async removeMovieFromMarathon(marathonId, movieId) {
+    const res = await apiClient.delete(`/marathons/${marathonId}/movies/${movieId}`)
+    const normalized = normalizeMarathon(res)
+    const cached = getStoredMarathons()
+    const idx = cached.findIndex((item) => String(item.id) === String(marathonId))
+    if (idx !== -1) cached[idx] = normalized
+    saveStoredMarathons(cached)
+    return { success: true, data: normalized }
+  }
+
+  async deleteMarathon(id) {
+    if (BASE_URL) {
+      await apiClient.delete(`/marathons/${id}`)
+    }
+    const cached = getStoredMarathons().filter((item) => String(item.id) !== String(id))
+    saveStoredMarathons(cached)
     return { success: true, id }
   }
 
-  // Checklist progress tontonan lokal per paket marathon
   getCompletedMovieIds(marathonId) {
     try {
       const raw = localStorage.getItem(PROGRESS_KEY)

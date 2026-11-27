@@ -98,7 +98,7 @@ export default function EditMoviePage({ movie, movieId, onBack, onSuccess }) {
             genre: data.genre || '',
             release_year: data.release_year || data.year || 2024,
             duration: data.duration || '',
-            rating: data.rating || 8.5,
+            rating: data.rating ?? 0,
             director: data.director || '',
             cast: data.cast || data.cast_members || '',
             streaming_on: data.streaming_on || '',
@@ -259,7 +259,7 @@ export default function EditMoviePage({ movie, movieId, onBack, onSuccess }) {
       release_year: Number(formData.release_year) || 2024,
       year: Number(formData.release_year) || 2024,
       duration: formData.duration.trim(),
-      rating: Number(formData.rating) || 8.0,
+      rating: formData.rating !== '' && formData.rating !== null ? Number(formData.rating) : 0,
       director: formData.director.trim(),
       cast: formData.cast.trim(),
       streaming_on: formData.streaming_on.trim(),
@@ -519,13 +519,12 @@ export default function EditMoviePage({ movie, movieId, onBack, onSuccess }) {
                 id="edit-rating"
                 type="number"
                 step="0.1"
-                min="1"
+                min="0"
                 max="10"
                 name="rating"
                 value={formData.rating}
                 onChange={(e) => setFormData((p) => ({ ...p, rating: e.target.value }))}
                 className="form-input"
-                required
               />
             </div>
           </div>
@@ -604,17 +603,13 @@ export default function EditMoviePage({ movie, movieId, onBack, onSuccess }) {
             </div>
 
             <div className="form-field">
-              <span className="form-label">Sorotan Katalog</span>
-              <label htmlFor="edit-featured" className="checkbox-inline-box">
-                <input
-                  id="edit-featured"
-                  type="checkbox"
-                  name="featured"
-                  checked={Boolean(formData.featured)}
-                  onChange={(e) => setFormData((p) => ({ ...p, featured: e.target.checked }))}
-                />
-                <span>Tampilkan di bagian Trending</span>
-              </label>
+              <span className="form-label">Peringkat Trending (Otomatis)</span>
+              <div className="checkbox-inline-box" style={{ cursor: 'default', opacity: 0.9 }}>
+                <span style={{ fontSize: '0.82rem', color: 'var(--steel)' }}>
+                  Top 10 Trending diperbarui otomatis berdasarkan rata-rata bintang &amp; ulasan
+                  pengguna.
+                </span>
+              </div>
             </div>
           </div>
 

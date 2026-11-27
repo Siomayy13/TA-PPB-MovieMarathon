@@ -3,12 +3,57 @@
 // ---------------------------------------------------------------------------
 
 /**
- * Format rating (e.g. 9.3 -> '9.3 / 10')
+ * Format rating (e.g. 9.3 -> '9.3', 0 -> 'Belum ada rating')
  */
 export const formatRating = (rating) => {
   const num = Number(rating)
-  if (Number.isNaN(num) || num <= 0) return 'NR'
+  if (Number.isNaN(num) || num <= 0) return 'Belum ada rating'
   return num.toFixed(1)
+}
+
+/**
+ * Format timestamp upload dari database secara rapi (contoh:
+ * "Diupload pukul 14:30" jika hari ini, "Kemarin • 14:30", atau "27 Nov • 14:30")
+ */
+export const formatUploadTime = (isoString) => {
+  if (!isoString) return ''
+  const date = new Date(isoString)
+  if (Number.isNaN(date.getTime())) return ''
+
+  const timeStr = date
+    .toLocaleTimeString('id-ID', {
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+    })
+    .replace('.', ':')
+
+  const now = new Date()
+  const isSameDay =
+    date.getFullYear() === now.getFullYear() &&
+    date.getMonth() === now.getMonth() &&
+    date.getDate() === now.getDate()
+
+  if (isSameDay) {
+    return `Diupload pukul ${timeStr}`
+  }
+
+  const yesterday = new Date(now)
+  yesterday.setDate(now.getDate() - 1)
+  const isYesterday =
+    date.getFullYear() === yesterday.getFullYear() &&
+    date.getMonth() === yesterday.getMonth() &&
+    date.getDate() === yesterday.getDate()
+
+  if (isYesterday) {
+    return `Kemarin • ${timeStr}`
+  }
+
+  const datePart = date.toLocaleDateString('id-ID', {
+    day: 'numeric',
+    month: 'short',
+  })
+  return `${datePart} • ${timeStr}`
 }
 
 /**

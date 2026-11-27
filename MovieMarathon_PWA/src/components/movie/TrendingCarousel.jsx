@@ -1,5 +1,14 @@
 import { useState, useEffect } from 'react'
-import { Flame, Star, Calendar, Clock, ChevronLeft, ChevronRight, Play } from 'lucide-react'
+import {
+  Flame,
+  Star,
+  Calendar,
+  Clock,
+  ChevronLeft,
+  ChevronRight,
+  Play,
+  MessageSquare,
+} from 'lucide-react'
 import WatchlistButton from '../common/WatchlistButton'
 import { formatRating, truncate } from '../../utils/helpers'
 
@@ -7,7 +16,8 @@ export default function TrendingCarousel({ movies = [], onSelect }) {
   const [currentIndex, setCurrentIndex] = useState(0)
   const [isPaused, setIsPaused] = useState(false)
 
-  const total = movies.length
+  const topMovies = movies.slice(0, 10)
+  const total = topMovies.length
 
   // Jaga agar index tetap valid jika daftar film berubah
   useEffect(() => {
@@ -27,7 +37,11 @@ export default function TrendingCarousel({ movies = [], onSelect }) {
 
   if (total === 0) return null
 
-  const activeMovie = movies[currentIndex] || movies[0]
+  const activeMovie = topMovies[currentIndex] || topMovies[0]
+  const rankNumber = activeMovie.trending_rank || currentIndex + 1
+  const reviewCount = Number(activeMovie.review_count || 0)
+  const avgStars = Number(activeMovie.average_review_rating || 0)
+
   const poster =
     activeMovie.image_url ||
     activeMovie.image ||
@@ -44,7 +58,7 @@ export default function TrendingCarousel({ movies = [], onSelect }) {
   return (
     <section
       className="trending-hero"
-      aria-label="Film dan Drama Sedang Trending"
+      aria-label="Top 10 Film dan Drama Trending Berdasarkan Ulasan"
       onMouseEnter={() => setIsPaused(true)}
       onMouseLeave={() => setIsPaused(false)}
     >
@@ -61,7 +75,7 @@ export default function TrendingCarousel({ movies = [], onSelect }) {
         <div className="trending-hero__info">
           <div className="trending-hero__badges">
             <span className="trending-pill">
-              <Flame size={13} /> TRENDING #{currentIndex + 1}
+              <Flame size={13} /> TRENDING #{rankNumber}
             </span>
             <span className="badge badge--primary">{activeMovie.type || 'Movie'}</span>
             <span
@@ -76,10 +90,25 @@ export default function TrendingCarousel({ movies = [], onSelect }) {
           <h1 className="trending-hero__title">{activeMovie.title}</h1>
 
           <div className="trending-hero__meta">
-            <span className="trending-meta-chip trending-meta-chip--gold">
-              <Star size={14} fill="#e5a93c" stroke="#e5a93c" />
-              {formatRating(activeMovie.rating)} / 10
-            </span>
+            {reviewCount > 0 ? (
+              <span className="trending-meta-chip trending-meta-chip--gold">
+                <Star size={14} fill="#e5a93c" stroke="#e5a93c" />
+                {avgStars.toFixed(1)} / 5 ({reviewCount} ulasan)
+              </span>
+            ) : (
+              <span className="trending-meta-chip trending-meta-chip--gold">
+                <Star size={14} fill="#e5a93c" stroke="#e5a93c" />
+                {Number(activeMovie.rating) > 0
+                  ? `Skor ${formatRating(activeMovie.rating)} / 10`
+                  : 'Belum ada rating'}
+              </span>
+            )}
+            {reviewCount > 0 && (
+              <span className="trending-meta-chip">
+                <MessageSquare size={13} color="#e5a93c" /> {activeMovie.total_stars || 0} Total
+                Bintang
+              </span>
+            )}
             <span className="trending-meta-chip">
               <Calendar size={14} /> {activeMovie.release_year || activeMovie.year || '2024'}
             </span>
@@ -100,7 +129,7 @@ export default function TrendingCarousel({ movies = [], onSelect }) {
               className="btn btn--primary"
               onClick={() => onSelect && onSelect(activeMovie)}
             >
-              <Play size={16} fill="#0e131f" /> Lihat Detail
+              <Play size={16} fill="#0e131f" /> Lihat Detail &amp; Episode
             </button>
             <WatchlistButton movieId={activeMovie.id} />
 
@@ -141,11 +170,17 @@ export default function TrendingCarousel({ movies = [], onSelect }) {
         </div>
       </div>
 
-      {/* Bottom Thumbnail Strip / Slide Selector */}
+      {/* Bottom Thumbnail Strip / Top 10 Slide Selector */}
       {total > 1 && (
-        <div className="trending-hero__strip" role="tablist" aria-label="Pilih film trending">
-          {movies.map((m, idx) => {
+        <div
+          className="trending-hero__strip"
+          role="tablist"
+          aria-label="Pilih film Top 10 trending"
+        >
+          {topMovies.map((m, idx) => {
             const isActive = idx === currentIndex
+            const itemRank = m.trending_rank || idx + 1
+            const itemReviews = Number(m.review_count || 0)
             return (
               <button
                 key={m.id}
@@ -165,7 +200,10 @@ export default function TrendingCarousel({ movies = [], onSelect }) {
                   className="trending-thumb__img"
                 />
                 <div className="trending-thumb__text">
-                  <span className="trending-thumb__rank">#{idx + 1}</span>
+                  <span className="trending-thumb__rank">
+                    #{itemRank}
+                    {itemReviews > 0 ? ` • ★ ${Number(m.average_review_rating || 0).toFixed(1)}` : ''}
+                  </span>
                   <span className="trending-thumb__title">{m.title}</span>
                 </div>
               </button>

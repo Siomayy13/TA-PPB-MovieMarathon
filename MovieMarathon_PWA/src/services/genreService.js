@@ -22,22 +22,36 @@ const saveStoredGenres = (list) => {
   try {
     localStorage.setItem(LOCAL_GENRES_KEY, JSON.stringify(list))
   } catch {
-    // ignore quota error
+    // ignore
   }
 }
 
-export const normalizeGenre = (g) => ({
-  id: g.id || `gen-${Date.now()}`,
-  name: g.name || 'Drama',
-  slug: g.slug || String(g.name || 'drama').toLowerCase().replace(/\s+/g, '-'),
-  description: g.description || `Kumpulan film dan drama bergenre ${g.name || 'Drama'}.`,
-  accent_color: g.accent_color || '#e5a93c',
-  cover_url:
-    g.cover_url ||
-    'https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?w=800&auto=format&fit=crop&q=80',
-  movie_count: g.movie_count ?? 0,
-  movies: Array.isArray(g.movies) ? g.movies.map(normalizeMovie) : undefined,
-})
+export const normalizeGenre = (g) => {
+  const movies = Array.isArray(g.movies) ? g.movies.map(normalizeMovie) : undefined
+  const samplePosters = Array.isArray(g.sample_posters)
+    ? g.sample_posters.filter(Boolean).slice(0, 4)
+    : movies
+      ? movies
+          .map((m) => m.image_url)
+          .filter(Boolean)
+          .slice(0, 4)
+      : []
+
+  return {
+    id: g.id || `gen-${Date.now()}`,
+    name: g.name || 'Drama',
+    slug: g.slug || String(g.name || 'drama').toLowerCase().replace(/\s+/g, '-'),
+    description: g.description || `Kumpulan film dan drama bergenre ${g.name || 'Drama'}.`,
+    accent_color: g.accent_color || '#e5a93c',
+    cover_url:
+      g.cover_url ||
+      samplePosters[0] ||
+      'https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?w=800&auto=format&fit=crop&q=80',
+    movie_count: g.movie_count ?? (movies ? movies.length : 0),
+    sample_posters: samplePosters,
+    movies,
+  }
+}
 
 class GenreService {
   async getGenres() {
@@ -51,17 +65,24 @@ class GenreService {
           return { success: true, data: normalized, source: 'api' }
         }
       } catch (err) {
-        console.info('[GenreService] API offline/tabel belum siap, memuat cache lokal:', err.message)
+        console.info('[GenreService] API offline, memuat cache lokal:', err.message)
       }
     }
 
-    // Fallback offline: hitung jumlah film yang cocok di database lokal
     const movieRes = await movieService.getMovies()
     const allMovies = movieRes.data || []
     const localGenres = getStoredGenres().map((g) => {
       const lower = (g.name || '').toLowerCase()
-      const count = allMovies.filter((m) => (m.genre || '').toLowerCase().includes(lower)).length
-      return normalizeGenre({ ...g, movie_count: count })
+      const matched = allMovies.filter((m) => (m.genre || '').toLowerCase().includes(lower))
+      const posters = matched
+        .map((m) => m.image_url)
+        .filter(Boolean)
+        .slice(0, 4)
+      return normalizeGenre({
+        ...g,
+        movie_count: matched.length,
+        sample_posters: posters,
+      })
     })
 
     return { success: true, data: localGenres, source: 'local' }
@@ -94,6 +115,10 @@ class GenreService {
       data: normalizeGenre({
         ...(genreObj || {}),
         movie_count: matched.length,
+        sample_posters: matched
+          .map((m) => m.image_url)
+          .filter(Boolean)
+          .slice(0, 4),
         movies: matched,
       }),
       source: 'local',
@@ -102,17 +127,13 @@ class GenreService {
 
   async createGenre(payload) {
     if (BASE_URL) {
-      try {
-        const created = await apiClient.post('/genres', payload)
-        if (created && created.id) {
-          const normalized = normalizeGenre(created)
-          const cached = getStoredGenres()
-          cached.push(normalized)
-          saveStoredGenres(cached)
-          return { success: true, data: normalized, source: 'api' }
-        }
-      } catch (err) {
-        console.info('[GenreService] API create gagal, menyimpan ke lokal:', err.message)
+      const created = await apiClient.post('/genres', payload)
+      if (created && created.id) {
+        const normalized = normalizeGenre(created)
+        const cached = getStoredGenres()
+        cached.push(normalized)
+        saveStoredGenres(cached)
+        return { success: true, data: normalized, source: 'api' }
       }
     }
 
@@ -120,6 +141,7 @@ class GenreService {
       ...payload,
       id: `gen-${Date.now()}`,
       movie_count: 0,
+      sample_posters: [],
     })
     const cached = getStoredGenres()
     cached.push(localCreated)
@@ -128,15 +150,11 @@ class GenreService {
   }
 
   async deleteGenre(id) {
+    if (BASE_URL) {
+      await apiClient.delete(`/genres/${id}`)
+    }
     const cached = getStoredGenres().filter((g) => String(g.id) !== String(id))
     saveStoredGenres(cached)
-    if (BASE_URL) {
-      try {
-        await apiClient.delete(`/genres/${id}`)
-      } catch {
-        // ignore saat offline
-      }
-    }
     return { success: true, id }
   }
 }

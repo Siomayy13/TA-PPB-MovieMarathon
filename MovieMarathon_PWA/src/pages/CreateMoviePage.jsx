@@ -48,12 +48,10 @@ export default function CreateMoviePage({ onBack, onSuccess }) {
     genre: 'Romance / Drama',
     release_year: 2024,
     duration: '16 Episode (70m)',
-    rating: 8.8,
     director: '',
     cast: '',
     streaming_on: 'Netflix',
     status: 'Ongoing',
-    featured: false,
     description: '',
     tags: 'Binge-Worthy, Trending',
   })
@@ -223,12 +221,11 @@ export default function CreateMoviePage({ onBack, onSuccess }) {
       genre: formData.genre.trim(),
       release_year: Number(formData.release_year) || 2024,
       duration: formData.duration.trim() || '120 mins',
-      rating: Number(formData.rating) || 8.0,
+      rating: 0, // Default 0 (belum ada rating; akan dihitung otomatis dari ulasan pengguna)
       director: formData.director.trim() || 'Unknown',
       cast: formData.cast.trim() || 'Various Artists',
       streaming_on: formData.streaming_on.trim() || 'Streaming',
       status: formData.status || 'Tamat',
-      featured: Boolean(formData.featured),
       description: formData.description.trim(),
       image_url: finalImage || POSTER_PRESETS[0].url,
       tags: cleanTags,
@@ -436,7 +433,7 @@ export default function CreateMoviePage({ onBack, onSuccess }) {
             </div>
           </div>
 
-          <div className="form-grid form-grid--3">
+          <div className="form-grid">
             <div className="form-field">
               <label htmlFor="genre" className="form-label">
                 Genre <span className="req">*</span>
@@ -465,24 +462,6 @@ export default function CreateMoviePage({ onBack, onSuccess }) {
                 onChange={handleFormChange}
                 min="1950"
                 max="2035"
-                className="form-input"
-                required
-              />
-            </div>
-
-            <div className="form-field">
-              <label htmlFor="rating" className="form-label">
-                Skor Rating (0 - 10) <span className="req">*</span>
-              </label>
-              <input
-                id="rating"
-                type="number"
-                step="0.1"
-                min="1"
-                max="10"
-                name="rating"
-                value={formData.rating}
-                onChange={handleFormChange}
                 className="form-input"
                 required
               />
@@ -571,17 +550,18 @@ export default function CreateMoviePage({ onBack, onSuccess }) {
             </div>
 
             <div className="form-field">
-              <span className="form-label">Sorotan Katalog</span>
-              <label htmlFor="featured" className="checkbox-inline-box">
-                <input
-                  id="featured"
-                  type="checkbox"
-                  name="featured"
-                  checked={Boolean(formData.featured)}
-                  onChange={handleFormChange}
-                />
-                <span>Tampilkan di bagian Trending</span>
+              <label htmlFor="tags" className="form-label">
+                Tag Marathon (Pisahkan dengan koma)
               </label>
+              <input
+                id="tags"
+                type="text"
+                name="tags"
+                value={formData.tags}
+                onChange={handleFormChange}
+                placeholder="Binge-Worthy, Masterpiece, Mind-Bending"
+                className="form-input"
+              />
             </div>
           </div>
 
@@ -597,21 +577,6 @@ export default function CreateMoviePage({ onBack, onSuccess }) {
               rows={4}
               placeholder="Ceritakan gambaran alur cerita dan latar belakang film/drama..."
               className="form-textarea"
-            />
-          </div>
-
-          <div className="form-field">
-            <label htmlFor="tags" className="form-label">
-              Tag Marathon (Pisahkan dengan koma)
-            </label>
-            <input
-              id="tags"
-              type="text"
-              name="tags"
-              value={formData.tags}
-              onChange={handleFormChange}
-              placeholder="Binge-Worthy, Masterpiece, Mind-Bending"
-              className="form-input"
             />
           </div>
         </div>

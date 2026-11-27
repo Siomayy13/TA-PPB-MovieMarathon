@@ -3,11 +3,11 @@ import { WatchlistModel } from "../models/watchlistModel.js";
 export const WatchlistController = {
   async getByUser(req, res) {
     try {
-      const userIdentifier = req.query.user_identifier;
+      const userIdentifier = req.user?.id || req.query.user_identifier;
       if (!userIdentifier) {
         return res
           .status(400)
-          .json({ error: "Query 'user_identifier' wajib disertakan." });
+          .json({ error: "Autentikasi atau 'user_identifier' wajib disertakan." });
       }
       const items = await WatchlistModel.getByUser(userIdentifier);
       res.json(items);
@@ -18,13 +18,14 @@ export const WatchlistController = {
 
   async toggle(req, res) {
     try {
-      const { user_identifier, movie_id } = req.body;
-      if (!user_identifier || !movie_id) {
+      const userIdentifier = req.user?.id || req.body?.user_identifier;
+      const { movie_id } = req.body || {};
+      if (!userIdentifier || !movie_id) {
         return res
           .status(400)
-          .json({ error: "Field 'user_identifier' dan 'movie_id' wajib diisi." });
+          .json({ error: "Autentikasi dan 'movie_id' wajib diisi." });
       }
-      const result = await WatchlistModel.toggle(user_identifier, movie_id);
+      const result = await WatchlistModel.toggle(userIdentifier, movie_id);
       res.json(result);
     } catch (err) {
       res.status(400).json({ error: err.message });
@@ -33,11 +34,11 @@ export const WatchlistController = {
 
   async remove(req, res) {
     try {
-      const userIdentifier = req.query.user_identifier || req.body?.user_identifier;
+      const userIdentifier = req.user?.id || req.query.user_identifier || req.body?.user_identifier;
       if (!userIdentifier) {
         return res
           .status(400)
-          .json({ error: "Parameter 'user_identifier' wajib disertakan." });
+          .json({ error: "Autentikasi atau 'user_identifier' wajib disertakan." });
       }
       const result = await WatchlistModel.remove(userIdentifier, req.params.movieId);
       res.json(result);

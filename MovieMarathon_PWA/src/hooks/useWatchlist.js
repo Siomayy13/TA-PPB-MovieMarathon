@@ -1,14 +1,27 @@
 import { useState, useEffect, useCallback } from 'react'
 import watchlistService from '../services/watchlistService'
+import { useAuth } from '../context/AuthContext'
 
 export function useWatchlist() {
-  const [watchlistIds, setWatchlistIds] = useState(() => watchlistService.getWatchlistIds())
+  const { isAuthenticated, user, openAuthModal } = useAuth()
+  const [watchlistIds, setWatchlistIds] = useState(() =>
+    isAuthenticated ? watchlistService.getWatchlistIds() : [],
+  )
 
   const refresh = useCallback(() => {
+    if (!isAuthenticated) {
+      setWatchlistIds([])
+      return
+    }
     setWatchlistIds(watchlistService.getWatchlistIds())
-  }, [])
+  }, [isAuthenticated])
 
   useEffect(() => {
+    if (!isAuthenticated) {
+      setWatchlistIds([])
+      return
+    }
+    setWatchlistIds(watchlistService.getWatchlistIds())
     watchlistService.syncFromApi().then((ids) => {
       if (Array.isArray(ids)) setWatchlistIds(ids)
     })
@@ -20,9 +33,13 @@ export function useWatchlist() {
       window.removeEventListener('storage', handleSync)
       window.removeEventListener('watchlist-updated', handleSync)
     }
-  }, [refresh])
+  }, [isAuthenticated, user?.id, refresh])
 
   const toggleWatchlist = (movieId) => {
+    if (!isAuthenticated) {
+      openAuthModal('login')
+      return { success: false, requiresAuth: true }
+    }
     const res = watchlistService.toggleWatchlist(movieId)
     if (res.success) {
       setWatchlistIds([...res.ids])
@@ -31,6 +48,7 @@ export function useWatchlist() {
   }
 
   const isWatchlisted = (movieId) => {
+    if (!isAuthenticated) return false
     return watchlistIds.some((id) => String(id) === String(movieId))
   }
 

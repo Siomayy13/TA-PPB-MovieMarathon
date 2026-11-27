@@ -86,6 +86,7 @@ class ReviewService {
           const all = getStoredReviews()
           all.unshift(created)
           saveStoredReviews(all)
+          window.dispatchEvent(new Event('reviews-updated'))
           return { success: true, data: created, source: 'api' }
         }
       } catch {
@@ -101,6 +102,7 @@ class ReviewService {
     }
     all.unshift(newReview)
     saveStoredReviews(all)
+    window.dispatchEvent(new Event('reviews-updated'))
     return { success: true, data: newReview, source: 'local' }
   }
 }

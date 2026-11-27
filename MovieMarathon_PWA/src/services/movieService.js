@@ -1,7 +1,9 @@
 import { apiClient, BASE_URL } from '../config/api'
 import { DEFAULT_MOVIES } from '../data/movies'
+import { getLocalLatestEpisodesMap } from './episodeService'
 
 const LOCAL_STORAGE_KEY = 'movie_marathon_database_v2'
+const REVIEWS_STORAGE_KEY = 'movie_marathon_reviews_v2'
 
 const getStoredMovies = () => {
   try {
@@ -25,8 +27,110 @@ const saveStoredMovies = (list) => {
   }
 }
 
+const getStoredReviews = () => {
+  try {
+    const raw = localStorage.getItem(REVIEWS_STORAGE_KEY)
+    const parsed = raw ? JSON.parse(raw) : []
+    return Array.isArray(parsed) ? parsed : []
+  } catch {
+    return []
+  }
+}
+
+/**
+ * Fallback perhitungan Top 10 Trending otomatis, rating dari ulasan,
+ * serta info episode terbaru saat mode offline.
+ */
+const attachLocalMetrics = (movies) => {
+  const reviews = getStoredReviews()
+  const latestEpMap = getLocalLatestEpisodesMap()
+  const statsMap = new Map()
+
+  reviews.forEach((r) => {
+    const key = String(r.movie_id)
+    const cur = statsMap.get(key) || { count: 0, sum: 0 }
+    cur.count += 1
+    cur.sum += Number(r.rating) || 0
+    statsMap.set(key, cur)
+  })
+
+  const enriched = movies.map((m) => {
+    const localStat = statsMap.get(String(m.id))
+    const reviewCount = m.review_count || (localStat ? localStat.count : 0)
+    const totalStars = m.total_stars || (localStat ? localStat.sum : 0)
+    const averageReviewRating =
+      m.average_review_rating ||
+      (reviewCount > 0 ? Number((totalStars / reviewCount).toFixed(2)) : 0)
+
+    const effectiveRating =
+      reviewCount > 0
+        ? Math.round(averageReviewRating * 2 * 10) / 10
+        : Number(m.rating ?? 0)
+
+    const localEp = latestEpMap.get(String(m.id))
+    const latestEpNum = m.latest_episode_number ?? localEp?.episode_number ?? null
+    const latestEpTitle = m.latest_episode_title ?? localEp?.title ?? null
+    const latestEpUploadedAt = m.latest_episode_uploaded_at ?? localEp?.created_at ?? null
+    const latestUploadAt =
+      latestEpUploadedAt || m.latest_upload_at || m.createdAt || m.created_at
+
+    return {
+      ...m,
+      rating: effectiveRating,
+      review_count: Number(reviewCount) || 0,
+      total_stars: Number(totalStars) || 0,
+      average_review_rating: Number(averageReviewRating) || 0,
+      episode_count: m.episode_count ?? localEp?.episode_count ?? 0,
+      latest_episode_number: latestEpNum,
+      latest_episode_title: latestEpTitle,
+      latest_episode_uploaded_at: latestEpUploadedAt,
+      latest_upload_at: latestUploadAt,
+    }
+  })
+
+  const ranked = [...enriched].sort((a, b) => {
+    const hasRevA = a.review_count > 0 ? 1 : 0
+    const hasRevB = b.review_count > 0 ? 1 : 0
+    if (hasRevB !== hasRevA) return hasRevB - hasRevA
+    if (b.average_review_rating !== a.average_review_rating) {
+      return b.average_review_rating - a.average_review_rating
+    }
+    if (b.review_count !== a.review_count) {
+      return b.review_count - a.review_count
+    }
+    if (b.total_stars !== a.total_stars) {
+      return b.total_stars - a.total_stars
+    }
+    return (Number(b.rating) || 0) - (Number(a.rating) || 0)
+  })
+
+  const rankMap = new Map()
+  ranked.slice(0, 10).forEach((m, idx) => {
+    rankMap.set(String(m.id), idx + 1)
+  })
+
+  return enriched.map((m) => {
+    const rank = m.trending_rank || rankMap.get(String(m.id)) || null
+    return {
+      ...m,
+      trending_rank: rank,
+      isTrending: Boolean(rank && rank <= 10),
+      featured: Boolean(rank && rank <= 10),
+    }
+  })
+}
+
 export const normalizeMovie = (item) => {
   if (!item) return null
+
+  const trendingRank = item.trending_rank != null ? Number(item.trending_rank) : null
+  const parsedRating =
+    item.rating !== null && item.rating !== undefined && item.rating !== ''
+      ? Number(item.rating)
+      : 0
+
+  const createdAt = item.created_at || item.createdAt || new Date().toISOString()
+  const latestEpUploadedAt = item.latest_episode_uploaded_at || null
 
   return {
     id: item.id || `mm-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
@@ -39,7 +143,7 @@ export const normalizeMovie = (item) => {
     release_year: Number(item.release_year || item.year || 2024),
     year: Number(item.release_year || item.year || 2024),
     duration: item.duration || '120 mins',
-    rating: Number(item.rating ?? 8.5),
+    rating: Number.isNaN(parsedRating) ? 0 : parsedRating,
     director: item.director || 'Director unknown',
     cast: item.cast || item.cast_members || 'Various artists',
     cast_members: item.cast_members || item.cast || 'Various artists',
@@ -52,17 +156,29 @@ export const normalizeMovie = (item) => {
       'https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?w=800&auto=format&fit=crop&q=80',
     tags: Array.isArray(item.tags) ? item.tags : ['Trending'],
     status: item.status === 'Ongoing' ? 'Ongoing' : 'Tamat',
-    featured: Boolean(item.isTrending ?? item.featured),
-    isTrending: Boolean(item.isTrending ?? item.featured),
-    created_at: item.created_at || item.createdAt || new Date().toISOString(),
-    createdAt: item.createdAt || item.created_at || new Date().toISOString(),
+    review_count: Number(item.review_count ?? 0),
+    total_stars: Number(item.total_stars ?? 0),
+    average_review_rating: Number(item.average_review_rating ?? 0),
+    trending_rank: trendingRank,
+    featured: trendingRank ? trendingRank <= 10 : Boolean(item.isTrending ?? item.featured),
+    isTrending: trendingRank ? trendingRank <= 10 : Boolean(item.isTrending ?? item.featured),
+    episode_count: Number(item.episode_count ?? 0),
+    latest_episode_number:
+      item.latest_episode_number != null ? Number(item.latest_episode_number) : null,
+    latest_episode_title: item.latest_episode_title || null,
+    latest_episode_uploaded_at: latestEpUploadedAt,
+    latest_upload_at: item.latest_upload_at || latestEpUploadedAt || createdAt,
+    episodes: Array.isArray(item.episodes) ? item.episodes : undefined,
+    created_at: createdAt,
+    createdAt,
   }
 }
 
 class MovieService {
   /**
    * GET /api/movies — ambil daftar film & drama dari Custom Express API,
-   * dengan sinkronisasi otomatis ke localStorage untuk dukungan offline PWA.
+   * lengkap dengan statistik ulasan, peringkat Top 10 Trending otomatis,
+   * serta detail episode terbaru & waktu upload.
    */
   async getMovies(params = {}) {
     if (BASE_URL) {
@@ -79,7 +195,7 @@ class MovieService {
       }
     }
 
-    const localList = getStoredMovies().map(normalizeMovie)
+    const localList = attachLocalMetrics(getStoredMovies().map(normalizeMovie))
     return {
       success: true,
       data: localList,
@@ -90,6 +206,35 @@ class MovieService {
         limit: params.limit || 50,
       },
     }
+  }
+
+  /**
+   * GET /api/movies/trending?limit=10 — Top 10 Trending otomatis berdasarkan ulasan/bintang.
+   */
+  async getTrending(limit = 10) {
+    if (BASE_URL) {
+      try {
+        const res = await apiClient.get('/movies/trending', { params: { limit } })
+        const list = Array.isArray(res) ? res : Array.isArray(res?.data) ? res.data : null
+        if (list) {
+          return {
+            success: true,
+            data: list.map(normalizeMovie),
+            source: 'api',
+          }
+        }
+      } catch (err) {
+        console.info('[MovieService] Trending API offline, menghitung ranking lokal:', err.message)
+      }
+    }
+
+    const enriched = attachLocalMetrics(getStoredMovies().map(normalizeMovie))
+    const topRanked = [...enriched]
+      .filter((m) => m.trending_rank != null)
+      .sort((a, b) => a.trending_rank - b.trending_rank)
+      .slice(0, limit)
+
+    return { success: true, data: topRanked, source: 'local' }
   }
 
   /**
@@ -115,7 +260,8 @@ class MovieService {
   }
 
   /**
-   * POST /api/movies (CRUD: Create)
+   * POST /api/movies (Admin CRUD: Create)
+   * Rating awal default 0 (belum ada rating; dihitung otomatis dari ulasan pengguna).
    */
   async createMovie(data) {
     const payload = {
@@ -124,7 +270,7 @@ class MovieService {
       genre: data.genre || 'Drama',
       release_year: Number(data.release_year || data.year || 2024),
       duration: data.duration || '120 mins',
-      rating: Number(data.rating ?? 8.0),
+      rating: data.rating !== undefined && data.rating !== null ? Number(data.rating) : 0,
       director: data.director || 'Unknown',
       cast_members: data.cast_members || data.cast || 'Various Artists',
       streaming_on: data.streaming_on || 'Streaming',
@@ -132,8 +278,6 @@ class MovieService {
       image_url: data.image_url || '',
       tags: Array.isArray(data.tags) ? data.tags : [],
       status: data.status === 'Ongoing' ? 'Ongoing' : 'Tamat',
-      featured: Boolean(data.isTrending ?? data.featured),
-      isTrending: Boolean(data.isTrending ?? data.featured),
     }
 
     if (BASE_URL) {
@@ -147,6 +291,9 @@ class MovieService {
           return { success: true, data: normalized, source: 'api' }
         }
       } catch (e) {
+        if (e?.status === 401 || e?.status === 403) {
+          throw new Error(e?.message || 'Hanya Admin yang dapat menambahkan judul film.')
+        }
         console.info('[MovieService] API tidak terjangkau, menyimpan ke cache lokal:', e.message)
       }
     }
@@ -163,7 +310,7 @@ class MovieService {
   }
 
   /**
-   * PUT /api/movies/:id (CRUD: Update)
+   * PUT /api/movies/:id (Admin CRUD: Update)
    */
   async updateMovie(id, data) {
     const payload = {
@@ -172,7 +319,6 @@ class MovieService {
       genre: data.genre,
       release_year: Number(data.release_year || data.year || 2024),
       duration: data.duration,
-      rating: Number(data.rating ?? 8.0),
       director: data.director,
       cast_members: data.cast_members || data.cast,
       streaming_on: data.streaming_on,
@@ -180,8 +326,9 @@ class MovieService {
       image_url: data.image_url,
       tags: Array.isArray(data.tags) ? data.tags : [],
       status: data.status === 'Ongoing' ? 'Ongoing' : 'Tamat',
-      featured: Boolean(data.isTrending ?? data.featured),
-      isTrending: Boolean(data.isTrending ?? data.featured),
+    }
+    if (data.rating !== undefined && data.rating !== null && data.rating !== '') {
+      payload.rating = Number(data.rating)
     }
 
     if (BASE_URL) {
@@ -197,6 +344,9 @@ class MovieService {
           return { success: true, data: normalized, source: 'api' }
         }
       } catch (e) {
+        if (e?.status === 401 || e?.status === 403) {
+          throw new Error(e?.message || 'Hanya Admin yang dapat mengubah data film.')
+        }
         console.info('[MovieService] API update gagal, memperbarui cache lokal:', e.message)
       }
     }
@@ -219,20 +369,22 @@ class MovieService {
   }
 
   /**
-   * DELETE /api/movies/:id (CRUD: Delete)
+   * DELETE /api/movies/:id (Admin CRUD: Delete)
    */
   async deleteMovie(id) {
-    const localList = getStoredMovies()
-    const updated = localList.filter((m) => String(m.id) !== String(id))
-    saveStoredMovies(updated)
-
     if (BASE_URL) {
       try {
         await apiClient.delete(`/movies/${id}`)
-      } catch {
-        // ignore saat offline
+      } catch (e) {
+        if (e?.status === 401 || e?.status === 403) {
+          throw new Error(e?.message || 'Hanya Admin yang dapat menghapus data film.')
+        }
       }
     }
+
+    const localList = getStoredMovies()
+    const updated = localList.filter((m) => String(m.id) !== String(id))
+    saveStoredMovies(updated)
 
     return { success: true, id }
   }

@@ -14,39 +14,56 @@ const formatMovieRow = (m) => {
     rating: m.rating !== null && m.rating !== undefined ? Number(m.rating) : 8.0,
     cast: m.cast_members || "",
     cast_members: m.cast_members || "",
+    status: m.status || "Tamat",
   };
 };
 
 export const GenreModel = {
   async getAll() {
     const supabase = getSupabase();
-    const { data: genres, error } = await supabase
-      .from("genres")
-      .select("*, movie_genres ( movie_id )")
-      .order("name", { ascending: true });
+    const [{ data: genres, error }, { data: allMovies }] = await Promise.all([
+      supabase
+        .from("genres")
+        .select("*, movie_genres ( movie_id )")
+        .order("name", { ascending: true }),
+      supabase
+        .from("movies")
+        .select("id, genre, image_url, rating")
+        .order("rating", { ascending: false }),
+    ]);
     if (error) throw error;
 
-    // Juga ambil daftar ringkas movies agar film baru yg genre-nya cocok tetap terhitung akurat
-    const { data: allMovies } = await supabase
-      .from("movies")
-      .select("id, genre");
+    const movieById = new Map();
+    (allMovies || []).forEach((m) => movieById.set(String(m.id), m));
 
     return (genres || []).map((g) => {
-      const joinedIds = new Set(
-        Array.isArray(g.movie_genres) ? g.movie_genres.map((mg) => mg.movie_id) : []
-      );
-      if (Array.isArray(allMovies)) {
-        const lowerName = g.name.toLowerCase();
-        allMovies.forEach((m) => {
-          if ((m.genre || "").toLowerCase().includes(lowerName)) {
-            joinedIds.add(m.id);
-          }
+      const matchedMap = new Map();
+
+      if (Array.isArray(g.movie_genres)) {
+        g.movie_genres.forEach((mg) => {
+          const found = movieById.get(String(mg.movie_id));
+          if (found) matchedMap.set(String(found.id), found);
         });
       }
+
+      const lowerName = (g.name || "").toLowerCase();
+      (allMovies || []).forEach((m) => {
+        if ((m.genre || "").toLowerCase().includes(lowerName)) {
+          matchedMap.set(String(m.id), m);
+        }
+      });
+
+      const matchedList = Array.from(matchedMap.values());
+      const samplePosters = matchedList
+        .map((m) => m.image_url)
+        .filter(Boolean)
+        .slice(0, 4);
+
       const { movie_genres, ...rest } = g;
       return {
         ...rest,
-        movie_count: joinedIds.size,
+        movie_count: matchedList.length,
+        sample_posters: samplePosters,
       };
     });
   },
@@ -60,7 +77,6 @@ export const GenreModel = {
       .single();
     if (error) throw error;
 
-    // Gabungkan hasil relasi movie_genres + fallback ilike pada kolom movies.genre
     const map = new Map();
     if (Array.isArray(genre.movie_genres)) {
       genre.movie_genres.forEach((mg) => {
@@ -87,11 +103,16 @@ export const GenreModel = {
     const movies = Array.from(map.values()).sort(
       (a, b) => (Number(b.rating) || 0) - (Number(a.rating) || 0)
     );
+    const samplePosters = movies
+      .map((m) => m.image_url)
+      .filter(Boolean)
+      .slice(0, 4);
 
     const { movie_genres, ...rest } = genre;
     return {
       ...rest,
       movie_count: movies.length,
+      sample_posters: samplePosters,
       movies,
     };
   },
@@ -116,10 +137,9 @@ export const GenreModel = {
       .single();
     if (error) throw error;
 
-    // Otomatis tautkan film yang sudah memiliki genre ini di kolom movies.genre
     const { data: matchedMovies } = await supabase
       .from("movies")
-      .select("id")
+      .select("id, image_url")
       .ilike("genre", `%${name}%`);
 
     if (Array.isArray(matchedMovies) && matchedMovies.length > 0) {
@@ -134,6 +154,10 @@ export const GenreModel = {
     return {
       ...created,
       movie_count: matchedMovies ? matchedMovies.length : 0,
+      sample_posters: (matchedMovies || [])
+        .map((m) => m.image_url)
+        .filter(Boolean)
+        .slice(0, 4),
     };
   },
 

@@ -11,11 +11,17 @@ import {
   WifiOff,
 } from 'lucide-react'
 import { useMarathons } from '../hooks/useMarathons'
+import { useAuth } from '../context/AuthContext'
 import MarathonCard from '../components/marathon/MarathonCard'
 import ConfirmModal from '../components/modals/ConfirmModal'
 import marathonService from '../services/marathonService'
 
-export default function MarathonsPage({ onSelectMarathon, onCreateMarathon }) {
+export default function MarathonsPage({
+  onSelectMarathon,
+  onCreateMarathon,
+  onEditMarathon,
+}) {
+  const { isAdmin } = useAuth()
   const { marathons, loading, error, source, refetch } = useMarathons()
 
   const [search, setSearch] = useState('')
@@ -58,9 +64,8 @@ export default function MarathonsPage({ onSelectMarathon, onCreateMarathon }) {
           </div>
           <h1 className="masthead-title">Collections</h1>
           <p className="masthead-desc">
-            Jelajahi berbagai koleksi film dan drama pilihan lengkap dengan estimasi durasi,
-            urutan tontonan, rekomendasi camilan, dan catatan istirahat. Klik koleksi mana pun
-            untuk melihat daftar tayangan di dalamnya.
+            Jelajahi berbagai koleksi film dan drama terkurasi dengan tampilan kolase poster film
+            di dalamnya. Klik koleksi mana pun untuk melihat daftar tayangan lengkapnya.
           </p>
         </div>
       </section>
@@ -78,7 +83,7 @@ export default function MarathonsPage({ onSelectMarathon, onCreateMarathon }) {
           </span>
         </div>
 
-        {onCreateMarathon && (
+        {isAdmin && onCreateMarathon && (
           <button
             type="button"
             className="btn btn--primary btn--sm"
@@ -126,7 +131,7 @@ export default function MarathonsPage({ onSelectMarathon, onCreateMarathon }) {
         <div className="status-state">
           <Clapperboard size={36} color="#495a74" />
           <h3>Collection tidak ditemukan</h3>
-          <p>Coba gunakan kata kunci pencarian lain atau buat collection baru.</p>
+          <p>Coba gunakan kata kunci pencarian lain.</p>
           <button
             type="button"
             className="btn btn--outline btn--sm"
@@ -145,7 +150,8 @@ export default function MarathonsPage({ onSelectMarathon, onCreateMarathon }) {
               key={marathon.id}
               marathon={marathon}
               onSelect={onSelectMarathon}
-              onDelete={setDeleteTarget}
+              onEdit={isAdmin ? onEditMarathon : undefined}
+              onDelete={isAdmin ? setDeleteTarget : undefined}
             />
           ))}
         </ul>

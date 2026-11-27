@@ -1,33 +1,41 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
+import { AuthProvider, useAuth } from './context/AuthContext'
 import Header from './components/Header'
 import BottomNav from './components/BottomNav'
 import Footer from './components/Footer'
 import Catalog from './pages/Catalog'
 import GenresPage from './pages/GenresPage'
 import MarathonsPage from './pages/MarathonsPage'
+import HistoryPage from './pages/HistoryPage'
 import WatchlistPage from './pages/WatchlistPage'
 import ProfilePage from './pages/ProfilePage'
 import TipsPage from './pages/TipsPage'
 import CreateMoviePage from './pages/CreateMoviePage'
 import EditMoviePage from './pages/EditMoviePage'
 import CreateMarathonPage from './pages/CreateMarathonPage'
+import EditMarathonPage from './pages/EditMarathonPage'
 import MovieDetail from './components/movie/MovieDetail'
 import MarathonDetail from './components/marathon/MarathonDetail'
 import SplashScreen from './components/common/SplashScreen'
+import WelcomeToast from './components/common/WelcomeToast'
 import PWABadge from './components/PWABadge'
 import ConfirmModal from './components/modals/ConfirmModal'
+import AuthModal from './components/modals/AuthModal'
 import movieService from './services/movieService'
 import marathonService from './services/marathonService'
 import './App.css'
 
-export default function App() {
+function AppShell({ logoutConfirmOpen, onCloseLogoutConfirm }) {
+  const { isAdmin, isAuthenticated, openAuthModal, logout } = useAuth()
+
   const [showSplash, setShowSplash] = useState(true)
   const [activeTab, setActiveTab] = useState('Catalog')
-  // 'list' | 'create' | 'edit' | 'detail' | 'marathon-detail' | 'create-marathon'
+  // 'list' | 'create' | 'edit' | 'detail' | 'marathon-detail' | 'create-marathon' | 'edit-marathon'
   const [mode, setMode] = useState('list')
   const [selectedMovie, setSelectedMovie] = useState(null)
   const [selectedMarathon, setSelectedMarathon] = useState(null)
   const [editingMovie, setEditingMovie] = useState(null)
+  const [editingMarathon, setEditingMarathon] = useState(null)
 
   // Global Delete Target (movie or marathon)
   const [deleteTarget, setDeleteTarget] = useState(null)
@@ -35,21 +43,39 @@ export default function App() {
   const [deleting, setDeleting] = useState(false)
 
   useEffect(() => {
-    document.title = 'Movie Marathon — Database Drama, Movie & Paket Marathon'
+    document.title = 'Movie Marathon — Drama, Movie, Episode & Collections'
   }, [])
 
   const scrollTop = () => window.scrollTo({ top: 0, behavior: 'smooth' })
 
+  const requireAdminAccess = () => {
+    if (isAdmin) return true
+    if (!isAuthenticated) {
+      openAuthModal('login')
+    } else {
+      alert('Akses ditolak: fitur ini hanya tersedia untuk akun Admin.')
+    }
+    return false
+  }
+
   const handleNavigate = (destination, payload) => {
     if (destination === 'Create') {
+      if (!requireAdminAccess()) return
       setMode('create')
       scrollTop()
     } else if (destination === 'CreateMarathon') {
+      if (!requireAdminAccess()) return
       setMode('create-marathon')
       scrollTop()
     } else if (destination === 'Edit') {
+      if (!requireAdminAccess()) return
       setEditingMovie(payload)
       setMode('edit')
+      scrollTop()
+    } else if (destination === 'EditMarathon') {
+      if (!requireAdminAccess()) return
+      setEditingMarathon(payload)
+      setMode('edit-marathon')
       scrollTop()
     } else if (destination === 'Detail') {
       setSelectedMovie(payload)
@@ -65,6 +91,7 @@ export default function App() {
       setSelectedMovie(null)
       setSelectedMarathon(null)
       setEditingMovie(null)
+      setEditingMarathon(null)
       scrollTop()
     }
   }
@@ -75,10 +102,16 @@ export default function App() {
       setMode('marathon-detail')
       return
     }
+    if (mode === 'edit-marathon' && selectedMarathon) {
+      setEditingMarathon(null)
+      setMode('marathon-detail')
+      return
+    }
     setMode('list')
     setSelectedMovie(null)
     setSelectedMarathon(null)
     setEditingMovie(null)
+    setEditingMarathon(null)
   }
 
   const handleGlobalDelete = async () => {
@@ -105,12 +138,22 @@ export default function App() {
     }
   }
 
+  const handleConfirmLogout = () => {
+    logout()
+    onCloseLogoutConfirm()
+    setMode('list')
+    setSelectedMovie(null)
+    setSelectedMarathon(null)
+    setEditingMovie(null)
+    setEditingMarathon(null)
+  }
+
   return (
     <div className="shell">
       {/* Intro Splash Animation */}
       {showSplash && <SplashScreen onFinish={() => setShowSplash(false)} />}
 
-      {/* Minimal Top App Bar */}
+      {/* Top App Bar */}
       <Header
         activeTab={activeTab}
         onTabChange={(tab) => handleNavigate(tab)}
@@ -120,7 +163,7 @@ export default function App() {
 
       {/* Main Body View */}
       <main className="main-content">
-        {mode === 'create' && (
+        {mode === 'create' && isAdmin && (
           <CreateMoviePage
             onBack={handleBackToList}
             onSuccess={() => {
@@ -130,7 +173,7 @@ export default function App() {
           />
         )}
 
-        {mode === 'edit' && (
+        {mode === 'edit' && isAdmin && (
           <EditMoviePage
             movie={editingMovie}
             movieId={editingMovie?.id}
@@ -142,7 +185,7 @@ export default function App() {
           />
         )}
 
-        {mode === 'create-marathon' && (
+        {mode === 'create-marathon' && isAdmin && (
           <CreateMarathonPage
             onBack={() => handleNavigate('Marathons')}
             onSuccess={() => {
@@ -151,15 +194,37 @@ export default function App() {
           />
         )}
 
+        {mode === 'edit-marathon' && isAdmin && editingMarathon && (
+          <EditMarathonPage
+            marathon={editingMarathon}
+            marathonId={editingMarathon?.id}
+            onBack={handleBackToList}
+            onSuccess={(updated) => {
+              setEditingMarathon(null)
+              if (updated) {
+                setSelectedMarathon(updated)
+                setActiveTab('Marathons')
+                setMode('marathon-detail')
+              } else {
+                handleNavigate('Marathons')
+              }
+            }}
+          />
+        )}
+
         {mode === 'detail' && selectedMovie && (
           <MovieDetail
             movie={selectedMovie}
             onBack={handleBackToList}
-            onEdit={(m) => handleNavigate('Edit', m)}
-            onDelete={(m) => {
-              setDeleteType('movie')
-              setDeleteTarget(m)
-            }}
+            onEdit={isAdmin ? (m) => handleNavigate('Edit', m) : undefined}
+            onDelete={
+              isAdmin
+                ? (m) => {
+                    setDeleteType('movie')
+                    setDeleteTarget(m)
+                  }
+                : undefined
+            }
           />
         )}
 
@@ -168,10 +233,16 @@ export default function App() {
             marathon={selectedMarathon}
             onBack={() => handleNavigate('Marathons')}
             onSelectMovie={(m) => handleNavigate('Detail', m)}
-            onDelete={(mar) => {
-              setDeleteType('marathon')
-              setDeleteTarget(mar)
-            }}
+            onEdit={isAdmin ? (mar) => handleNavigate('EditMarathon', mar) : undefined}
+            onUpdated={(updated) => setSelectedMarathon(updated)}
+            onDelete={
+              isAdmin
+                ? (mar) => {
+                    setDeleteType('marathon')
+                    setDeleteTarget(mar)
+                  }
+                : undefined
+            }
           />
         )}
 
@@ -186,14 +257,22 @@ export default function App() {
             {activeTab === 'Genres' && (
               <GenresPage
                 onSelectMovie={(m) => handleNavigate('Detail', m)}
-                onEditMovie={(m) => handleNavigate('Edit', m)}
+                onEditMovie={isAdmin ? (m) => handleNavigate('Edit', m) : undefined}
               />
             )}
 
             {activeTab === 'Marathons' && (
               <MarathonsPage
                 onSelectMarathon={(mar) => handleNavigate('MarathonDetail', mar)}
-                onCreateMarathon={() => handleNavigate('CreateMarathon')}
+                onCreateMarathon={isAdmin ? () => handleNavigate('CreateMarathon') : undefined}
+                onEditMarathon={isAdmin ? (mar) => handleNavigate('EditMarathon', mar) : undefined}
+              />
+            )}
+
+            {activeTab === 'History' && (
+              <HistoryPage
+                onSelectMovie={(m) => handleNavigate('Detail', m)}
+                onNavigateCatalog={() => handleNavigate('Catalog')}
               />
             )}
 
@@ -207,7 +286,11 @@ export default function App() {
             {activeTab === 'Tips' && <TipsPage />}
 
             {activeTab === 'Profile' && (
-              <ProfilePage onReplaySplash={() => setShowSplash(true)} />
+              <ProfilePage
+                onReplaySplash={() => setShowSplash(true)}
+                onNavigate={handleNavigate}
+                onOpenTips={() => handleNavigate('Tips')}
+              />
             )}
           </>
         )}
@@ -226,14 +309,69 @@ export default function App() {
         onCancel={() => setDeleteTarget(null)}
       />
 
-      {/* PWA Offline and Install Prompt */}
+      {/* Pop-up Konfirmasi Log Out (Pengguna & Admin) */}
+      <ConfirmModal
+        open={logoutConfirmOpen}
+        title="Konfirmasi Log Out"
+        message="Apakah Anda yakin ingin keluar dari akun ini?"
+        confirmLabel="Ya, Keluar"
+        cancelLabel="Batal"
+        danger
+        onConfirm={handleConfirmLogout}
+        onCancel={onCloseLogoutConfirm}
+      />
+
+      {/* PWA Offline and Non-Blocking Install Prompt */}
       <PWABadge />
 
       {/* App Footer */}
       <Footer />
 
-      {/* Persistent Bottom Navigation Bar (5 Halaman Utama) */}
+      {/* Persistent Bottom Navigation Bar (6 Halaman Utama) */}
       <BottomNav activeTab={activeTab} onTabChange={(tab) => handleNavigate(tab)} />
     </div>
+  )
+}
+
+export default function App() {
+  const [authModal, setAuthModal] = useState({ open: false, mode: 'login' })
+  const [welcomeEvent, setWelcomeEvent] = useState(null)
+  const [logoutConfirmOpen, setLogoutConfirmOpen] = useState(false)
+
+  const openAuthModal = useCallback((defaultMode = 'login') => {
+    setAuthModal({ open: true, mode: defaultMode || 'login' })
+  }, [])
+
+  const handleAuthSuccess = useCallback((loggedInUser) => {
+    if (loggedInUser) {
+      setWelcomeEvent({ id: Date.now(), user: loggedInUser })
+    }
+  }, [])
+
+  const handleRequestLogout = useCallback(() => {
+    setLogoutConfirmOpen(true)
+  }, [])
+
+  const clearWelcome = useCallback(() => {
+    setWelcomeEvent(null)
+  }, [])
+
+  return (
+    <AuthProvider
+      onOpenAuthModal={openAuthModal}
+      onAuthSuccess={handleAuthSuccess}
+      onRequestLogout={handleRequestLogout}
+    >
+      <WelcomeToast welcomeEvent={welcomeEvent} onDone={clearWelcome} />
+      <AppShell
+        logoutConfirmOpen={logoutConfirmOpen}
+        onCloseLogoutConfirm={() => setLogoutConfirmOpen(false)}
+      />
+      <AuthModal
+        open={authModal.open}
+        initialMode={authModal.mode}
+        onClose={() => setAuthModal((prev) => ({ ...prev, open: false }))}
+      />
+    </AuthProvider>
   )
 }

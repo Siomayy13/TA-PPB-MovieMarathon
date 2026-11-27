@@ -12,7 +12,8 @@ import {
   Wifi,
   WifiOff,
 } from 'lucide-react'
-import { useMovies } from '../hooks/useMovies'
+import { useMovies, useTrendingMovies } from '../hooks/useMovies'
+import { useAuth } from '../context/AuthContext'
 import MovieCard from '../components/movie/MovieCard'
 import MovieDetail from '../components/movie/MovieDetail'
 import TrendingCarousel from '../components/movie/TrendingCarousel'
@@ -27,7 +28,9 @@ import {
 } from '../utils/helpers'
 
 export default function Catalog({ onNavigate }) {
+  const { isAdmin } = useAuth()
   const { movies, loading, error, refetch, source } = useMovies()
+  const { trending, refetch: refetchTrending } = useTrendingMovies(10)
 
   // Filter & Search states
   const [search, setSearch] = useState('')
@@ -58,20 +61,39 @@ export default function Catalog({ onNavigate }) {
   // Tampilkan 3 bagian utama saat belum mempersempit ke 1 status atau pencarian
   const showThreeSections = activeStatus === 'All' && !search.trim()
 
-  // Bagian 1 (Paling Atas): Trending (isTrending === true)
+  // Bagian 1 (Paling Atas): Top 10 Trending Otomatis berdasarkan rata-rata bintang & ulasan
   const trendingMovies = useMemo(() => {
-    const base = movies.filter((m) => matchesCategory(m, activeCategory))
-    const trendingList = base.filter((m) => m.isTrending === true || m.featured === true)
-    const fallback = trendingList.length > 0 ? trendingList : base.slice(0, 5)
-    return sortMovies(fallback, 'rating', 'desc')
-  }, [movies, activeCategory])
+    const sourceList = trending.length > 0 ? trending : movies
+    const base = sourceList.filter((m) => matchesCategory(m, activeCategory))
+    return [...base]
+      .sort((a, b) => {
+        if (a.trending_rank && b.trending_rank && a.trending_rank !== b.trending_rank) {
+          return a.trending_rank - b.trending_rank
+        }
+        const avgDiff =
+          (Number(b.average_review_rating) || 0) - (Number(a.average_review_rating) || 0)
+        if (avgDiff !== 0) return avgDiff
+        const countDiff = (Number(b.review_count) || 0) - (Number(a.review_count) || 0)
+        if (countDiff !== 0) return countDiff
+        return (Number(b.rating) || 0) - (Number(a.rating) || 0)
+      })
+      .slice(0, 10)
+      .map((m, idx) => ({
+        ...m,
+        trending_rank: activeCategory === 'All' ? m.trending_rank || idx + 1 : idx + 1,
+      }))
+  }, [trending, movies, activeCategory])
 
-  // Bagian 2 (Di bawah Trending): Baru Saja Di-upload (urut createdAt terbaru)
+  // Bagian 2 (Di bawah Trending): Baru Saja Di-upload (urut berdasarkan timestamp upload episode / film terbaru)
   const recentlyUploadedMovies = useMemo(() => {
     const base = movies.filter((m) => matchesCategory(m, activeCategory))
     return [...base].sort((a, b) => {
-      const timeA = new Date(a.createdAt || a.created_at || 0).getTime()
-      const timeB = new Date(b.createdAt || b.created_at || 0).getTime()
+      const timeA = new Date(
+        a.latest_episode_uploaded_at || a.latest_upload_at || a.createdAt || a.created_at || 0,
+      ).getTime()
+      const timeB = new Date(
+        b.latest_episode_uploaded_at || b.latest_upload_at || b.createdAt || b.created_at || 0,
+      ).getTime()
       if (timeB !== timeA) return timeB - timeA
       return (Number(b.release_year) || 0) - (Number(a.release_year) || 0)
     })
@@ -93,6 +115,7 @@ export default function Catalog({ onNavigate }) {
       await movieService.deleteMovie(deleteTarget.id)
       setDeleteTarget(null)
       refetch()
+      refetchTrending()
     } catch (err) {
       setDeleteError(err.message || 'Gagal menghapus film.')
     } finally {
@@ -105,25 +128,35 @@ export default function Catalog({ onNavigate }) {
     return (
       <MovieDetail
         movie={selectedMovie}
-        onBack={() => setSelectedMovie(null)}
-        onEdit={(m) => onNavigate && onNavigate('Edit', m)}
-        onDelete={(m) => {
+        onBack={() => {
           setSelectedMovie(null)
-          setDeleteTarget(m)
+          refetch()
+          refetchTrending()
         }}
+        onEdit={isAdmin && onNavigate ? (m) => onNavigate('Edit', m) : undefined}
+        onDelete={
+          isAdmin
+            ? (m) => {
+                setSelectedMovie(null)
+                setDeleteTarget(m)
+              }
+            : undefined
+        }
       />
     )
   }
 
-  const renderMovieGrid = (items) => (
+  const renderMovieGrid = (items, { showRank = false, showUploadMeta = false } = {}) => (
     <ul className="movies-grid">
-      {items.map((movie) => (
+      {items.map((movie, idx) => (
         <MovieCard
           key={movie.id}
           movie={movie}
+          trendingRank={showRank ? movie.trending_rank || idx + 1 : null}
+          showUploadMeta={showUploadMeta}
           onSelect={setSelectedMovie}
-          onEdit={onNavigate ? (m) => onNavigate('Edit', m) : undefined}
-          onDelete={setDeleteTarget}
+          onEdit={isAdmin && onNavigate ? (m) => onNavigate('Edit', m) : undefined}
+          onDelete={isAdmin ? setDeleteTarget : undefined}
         />
       ))}
     </ul>
@@ -131,7 +164,7 @@ export default function Catalog({ onNavigate }) {
 
   return (
     <div className="catalog-page">
-      {/* BAGIAN 1 (PALING ATAS): Hero Carousel khusus Film Trending */}
+      {/* BAGIAN 1 (PALING ATAS): Hero Carousel Top 10 Trending Otomatis */}
       {!loading && showThreeSections && trendingMovies.length > 0 && (
         <TrendingCarousel movies={trendingMovies} onSelect={setSelectedMovie} />
       )}
@@ -149,7 +182,7 @@ export default function Catalog({ onNavigate }) {
           </span>
         </div>
 
-        {onNavigate && (
+        {isAdmin && onNavigate && (
           <button
             type="button"
             className="btn btn--primary btn--sm"
@@ -216,10 +249,10 @@ export default function Catalog({ onNavigate }) {
         </div>
       )}
 
-      {/* MODE 1: Bagian 2 (Baru Saja Di-upload) & Bagian 3 (Sudah Tamat) di bawah Hero Trending */}
+      {/* MODE 1: 3 Bagian Utama Dashboard */}
       {!loading && filteredMovies.length > 0 && showThreeSections && (
         <div className="catalog-sections">
-          {/* Bagian 1B: Ringkasan Grid Trending (opsional cepat jika ingin lihat semua Trending dalam grid) */}
+          {/* BAGIAN 1B: Top 10 Trending Otomatis Berdasarkan Ulasan */}
           {trendingMovies.length > 0 && (
             <section className="catalog-section">
               <div className="catalog-section__head">
@@ -228,19 +261,20 @@ export default function Catalog({ onNavigate }) {
                     <Flame size={16} />
                   </span>
                   <div>
-                    <h2 className="catalog-section__title">Sedang Trending</h2>
+                    <h2 className="catalog-section__title">Top 10 Trending</h2>
                     <p className="catalog-section__sub">
-                      Deretan film dan drama pilihan terpopuler saat ini
+                      Peringkat otomatis #1 hingga #{trendingMovies.length} berdasarkan rata-rata
+                      bintang &amp; jumlah ulasan pengguna tertinggi
                     </p>
                   </div>
                 </div>
-                <span className="count-badge">{trendingMovies.length} Trending</span>
+                <span className="count-badge">Top {trendingMovies.length}</span>
               </div>
-              {renderMovieGrid(trendingMovies)}
+              {renderMovieGrid(trendingMovies, { showRank: true })}
             </section>
           )}
 
-          {/* BAGIAN 2: Baru Saja Di-upload (urut berdasarkan createdAt terbaru) */}
+          {/* BAGIAN 2: Baru Saja Di-upload (episode terbaru & timestamp upload dari database) */}
           {recentlyUploadedMovies.length > 0 && (
             <section className="catalog-section">
               <div className="catalog-section__head">
@@ -251,7 +285,7 @@ export default function Catalog({ onNavigate }) {
                   <div>
                     <h2 className="catalog-section__title">Baru Saja Di-upload</h2>
                     <p className="catalog-section__sub">
-                      Diurutkan dari tayangan terbaru yang baru masuk ke katalog
+                      Menampilkan episode terbaru beserta waktu upload langsung dari database
                     </p>
                   </div>
                 </div>
@@ -263,7 +297,7 @@ export default function Catalog({ onNavigate }) {
                   <Radio size={13} /> Filter Ongoing
                 </button>
               </div>
-              {renderMovieGrid(recentlyUploadedMovies)}
+              {renderMovieGrid(recentlyUploadedMovies, { showUploadMeta: true })}
             </section>
           )}
 

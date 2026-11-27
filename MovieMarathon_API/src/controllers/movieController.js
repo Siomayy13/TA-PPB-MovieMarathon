@@ -19,6 +19,16 @@ export const MovieController = {
     }
   },
 
+  async getTrending(req, res) {
+    try {
+      const limit = Number(req.query.limit) || 10;
+      const trending = await MovieModel.getTrending(limit);
+      res.json(trending);
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  },
+
   async getById(req, res) {
     try {
       const movie = await MovieModel.getById(req.params.id);

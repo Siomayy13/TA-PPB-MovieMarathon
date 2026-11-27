@@ -10,32 +10,69 @@ import {
   CheckCircle2,
   Circle,
   Sparkles,
+  Edit2,
   Trash2,
   ChevronRight,
+  X,
 } from 'lucide-react'
 import marathonService from '../../services/marathonService'
+import { useAuth } from '../../context/AuthContext'
+import PosterCollage from '../common/PosterCollage'
 import { formatRating } from '../../utils/helpers'
 
-export default function MarathonDetail({ marathon, onBack, onSelectMovie, onDelete }) {
+export default function MarathonDetail({
+  marathon,
+  onBack,
+  onSelectMovie,
+  onEdit,
+  onDelete,
+  onUpdated,
+}) {
+  const { isAdmin } = useAuth()
+  const [currentMarathon, setCurrentMarathon] = useState(marathon)
   const [completedIds, setCompletedIds] = useState([])
+  const [removingMovieId, setRemovingMovieId] = useState(null)
 
   useEffect(() => {
-    if (marathon?.id) {
-      setCompletedIds(marathonService.getCompletedMovieIds(marathon.id))
-    }
-  }, [marathon?.id])
+    setCurrentMarathon(marathon)
+  }, [marathon])
 
-  const movies = Array.isArray(marathon?.movies) ? marathon.movies : []
-  const completedCount = movies.filter((m) =>
-    completedIds.includes(String(m.id)),
-  ).length
+  useEffect(() => {
+    if (currentMarathon?.id) {
+      setCompletedIds(marathonService.getCompletedMovieIds(currentMarathon.id))
+    }
+  }, [currentMarathon?.id])
+
+  const movies = Array.isArray(currentMarathon?.movies) ? currentMarathon.movies : []
+  const posters =
+    Array.isArray(currentMarathon?.sample_posters) && currentMarathon.sample_posters.length > 0
+      ? currentMarathon.sample_posters
+      : movies.map((m) => m.image_url).filter(Boolean).slice(0, 4)
+
+  const completedCount = movies.filter((m) => completedIds.includes(String(m.id))).length
   const progressPercent =
     movies.length > 0 ? Math.round((completedCount / movies.length) * 100) : 0
 
   const handleToggleDone = (e, movieId) => {
     e.stopPropagation()
-    const next = marathonService.toggleMovieCompleted(marathon.id, movieId)
+    const next = marathonService.toggleMovieCompleted(currentMarathon.id, movieId)
     setCompletedIds(next)
+  }
+
+  const handleQuickRemoveMovie = async (e, movieId) => {
+    e.stopPropagation()
+    try {
+      setRemovingMovieId(movieId)
+      const res = await marathonService.removeMovieFromMarathon(currentMarathon.id, movieId)
+      if (res.success && res.data) {
+        setCurrentMarathon(res.data)
+        if (onUpdated) onUpdated(res.data)
+      }
+    } catch (err) {
+      alert(err?.message || 'Gagal menghapus film dari collection.')
+    } finally {
+      setRemovingMovieId(null)
+    }
   }
 
   return (
@@ -44,28 +81,28 @@ export default function MarathonDetail({ marathon, onBack, onSelectMovie, onDele
         <ArrowLeft size={18} /> Kembali ke Collections
       </button>
 
-      {/* Hero Banner */}
+      {/* Hero Banner with Poster Collage */}
       <div className="detail-hero">
         <div className="detail-poster-wrap">
-          <img
-            src={marathon.cover_url}
-            alt={marathon.title}
-            className="detail-poster"
+          <PosterCollage
+            posters={posters}
+            fallbackUrl={currentMarathon.cover_url}
+            alt={currentMarathon.title}
           />
         </div>
 
         <div className="detail-info">
           <div className="detail-badge-row">
             <span className="badge badge--primary">Collection</span>
-            <span className="badge badge--outline">{marathon.theme}</span>
+            <span className="badge badge--outline">{currentMarathon.theme}</span>
           </div>
 
-          <h1 className="detail-title">{marathon.title}</h1>
+          <h1 className="detail-title">{currentMarathon.title}</h1>
 
           <div className="detail-stats-bar">
             <div className="stat-pill">
               <Clock size={16} color="#e5a93c" />
-              <span>{marathon.total_duration}</span>
+              <span>{currentMarathon.total_duration}</span>
             </div>
             <div className="stat-pill">
               <Film size={16} color="#e5a93c" />
@@ -73,12 +110,12 @@ export default function MarathonDetail({ marathon, onBack, onSelectMovie, onDele
             </div>
             <div className="stat-pill">
               <Sparkles size={16} color="#e5a93c" />
-              <span>{marathon.mood}</span>
+              <span>{currentMarathon.mood}</span>
             </div>
           </div>
 
           <p className="detail-synopsis" style={{ marginBottom: '18px' }}>
-            {marathon.description || 'Koleksi kurasi khusus untuk pengalaman menonton terbaik.'}
+            {currentMarathon.description || 'Koleksi kurasi khusus untuk pengalaman menonton terbaik.'}
           </p>
 
           {/* Progress Tracker */}
@@ -90,22 +127,31 @@ export default function MarathonDetail({ marathon, onBack, onSelectMovie, onDele
               </strong>
             </div>
             <div className="marathon-progress-bar">
-              <div
-                className="marathon-progress-fill"
-                style={{ width: `${progressPercent}%` }}
-              />
+              <div className="marathon-progress-fill" style={{ width: `${progressPercent}%` }} />
             </div>
           </div>
 
-          {onDelete && (
-            <div className="detail-actions" style={{ marginTop: '16px' }}>
-              <button
-                type="button"
-                className="btn btn--danger btn--sm"
-                onClick={() => onDelete(marathon)}
-              >
-                <Trash2 size={15} /> Hapus Collection
-              </button>
+          {/* Admin Controls */}
+          {isAdmin && (
+            <div className="detail-actions" style={{ marginTop: '16px', flexWrap: 'wrap' }}>
+              {onEdit && (
+                <button
+                  type="button"
+                  className="btn btn--primary btn--sm"
+                  onClick={() => onEdit(currentMarathon)}
+                >
+                  <Edit2 size={15} /> Edit Collection &amp; Kelola Film
+                </button>
+              )}
+              {onDelete && (
+                <button
+                  type="button"
+                  className="btn btn--danger btn--sm"
+                  onClick={() => onDelete(currentMarathon)}
+                >
+                  <Trash2 size={15} /> Hapus Collection
+                </button>
+              )}
             </div>
           )}
         </div>
@@ -118,7 +164,7 @@ export default function MarathonDetail({ marathon, onBack, onSelectMovie, onDele
             <Popcorn size={18} color="#e5a93c" /> Rekomendasi Camilan
           </h2>
           <p className="detail-synopsis" style={{ margin: 0 }}>
-            {marathon.snack_recommendation || 'Popcorn, teh hangat, dan air mineral.'}
+            {currentMarathon.snack_recommendation || 'Popcorn, teh hangat, dan air mineral.'}
           </p>
         </div>
 
@@ -127,16 +173,41 @@ export default function MarathonDetail({ marathon, onBack, onSelectMovie, onDele
             <Coffee size={18} color="#27ae60" /> Jadwal Istirahat Sehat
           </h2>
           <p className="detail-synopsis" style={{ margin: 0 }}>
-            {marathon.break_schedule || 'Ambil jeda 15 menit setelah setiap film atau 2 episode.'}
+            {currentMarathon.break_schedule || 'Ambil jeda 15 menit setelah setiap film atau 2 episode.'}
           </p>
         </div>
       </div>
 
       {/* Ordered Lineup of Movies */}
       <div className="detail-section">
-        <h2 className="detail-section__title" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <Layers size={18} color="#e5a93c" /> Daftar Film dalam Collection ({movies.length})
-        </h2>
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: '12px',
+            flexWrap: 'wrap',
+            marginBottom: '12px',
+            paddingBottom: '8px',
+            borderBottom: '1px solid var(--line)',
+          }}
+        >
+          <h2
+            className="detail-section__title"
+            style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: 0, border: 'none', padding: 0 }}
+          >
+            <Layers size={18} color="#e5a93c" /> Daftar Film dalam Collection ({movies.length})
+          </h2>
+          {isAdmin && onEdit && (
+            <button
+              type="button"
+              className="btn btn--outline btn--sm"
+              onClick={() => onEdit(currentMarathon)}
+            >
+              <Edit2 size={13} /> Tambah / Atur Film
+            </button>
+          )}
+        </div>
 
         {movies.length === 0 ? (
           <p className="no-reviews">Belum ada film yang ditautkan pada collection ini.</p>
@@ -195,6 +266,19 @@ export default function MarathonDetail({ marathon, onBack, onSelectMovie, onDele
                     </div>
                     {movie.note && <p className="lineup-note">{movie.note}</p>}
                   </div>
+
+                  {isAdmin && (
+                    <button
+                      type="button"
+                      className="btn btn--outline btn--sm"
+                      disabled={removingMovieId === movie.id}
+                      onClick={(e) => handleQuickRemoveMovie(e, movie.id)}
+                      title="Hapus film ini dari collection"
+                      aria-label={`Hapus ${movie.title} dari collection`}
+                    >
+                      <X size={14} />
+                    </button>
+                  )}
 
                   <ChevronRight size={18} className="lineup-arrow" />
                 </div>

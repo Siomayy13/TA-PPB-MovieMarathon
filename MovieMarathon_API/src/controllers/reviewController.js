@@ -21,7 +21,7 @@ export const ReviewController = {
 
   async create(req, res) {
     try {
-      const { movie_id, user_name, rating, comment } = req.body;
+      const { movie_id, user_name, rating, comment } = req.body || {};
       if (!movie_id || !comment || !String(comment).trim()) {
         return res
           .status(400)
@@ -29,7 +29,8 @@ export const ReviewController = {
       }
       const review = await ReviewModel.create({
         movie_id,
-        user_name: user_name || "Penonton Marathon",
+        user_id: req.user?.id || null,
+        user_name: req.user?.display_name || user_name || "Penonton Marathon",
         rating: rating || 5,
         comment: String(comment).trim(),
       });

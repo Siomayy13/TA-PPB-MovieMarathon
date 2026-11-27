@@ -31,9 +31,47 @@ export function useMovies(params = {}) {
 
   useEffect(() => {
     fetchMovies()
+    const onRefresh = () => fetchMovies()
+    window.addEventListener('reviews-updated', onRefresh)
+    window.addEventListener('episodes-updated', onRefresh)
+    return () => {
+      window.removeEventListener('reviews-updated', onRefresh)
+      window.removeEventListener('episodes-updated', onRefresh)
+    }
   }, [fetchMovies])
 
   return { movies, loading, error, source, refetch: fetchMovies }
+}
+
+/**
+ * Hook khusus Top 10 Trending otomatis berdasarkan ulasan/rating pengguna.
+ */
+export function useTrendingMovies(limit = 10) {
+  const [trending, setTrending] = useState([])
+  const [loading, setLoading] = useState(true)
+
+  const fetchTrending = useCallback(async () => {
+    try {
+      setLoading(true)
+      const res = await movieService.getTrending(limit)
+      if (res.success) {
+        setTrending(res.data || [])
+      }
+    } catch {
+      setTrending([])
+    } finally {
+      setLoading(false)
+    }
+  }, [limit])
+
+  useEffect(() => {
+    fetchTrending()
+    const onReviewsUpdated = () => fetchTrending()
+    window.addEventListener('reviews-updated', onReviewsUpdated)
+    return () => window.removeEventListener('reviews-updated', onReviewsUpdated)
+  }, [fetchTrending])
+
+  return { trending, loading, refetch: fetchTrending }
 }
 
 export function useMovieById(id) {

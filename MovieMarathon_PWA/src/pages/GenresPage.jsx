@@ -14,13 +14,16 @@ import {
   AlertCircle,
 } from 'lucide-react'
 import { useGenres } from '../hooks/useGenres'
+import { useAuth } from '../context/AuthContext'
 import genreService from '../services/genreService'
 import MovieCard from '../components/movie/MovieCard'
+import PosterCollage from '../components/common/PosterCollage'
 import { sortMovies } from '../utils/helpers'
 
 const COLOR_OPTIONS = ['#e5a93c', '#ec4899', '#38bdf8', '#ef4444', '#a855f7', '#14b8a6', '#f97316']
 
 export default function GenresPage({ onSelectMovie, onEditMovie }) {
+  const { isAdmin } = useAuth()
   const { genres, loading, source, refetch } = useGenres()
 
   const [selectedGenre, setSelectedGenre] = useState(null)
@@ -31,7 +34,6 @@ export default function GenresPage({ onSelectMovie, onEditMovie }) {
   const [searchMovie, setSearchMovie] = useState('')
   const [sortOption, setSortOption] = useState('rating:desc')
 
-  // Tambah genre baru
   const [showAddForm, setShowAddForm] = useState(false)
   const [newName, setNewName] = useState('')
   const [newDesc, setNewDesc] = useState('')
@@ -40,7 +42,6 @@ export default function GenresPage({ onSelectMovie, onEditMovie }) {
   const [feedback, setFeedback] = useState('')
   const [errorMsg, setErrorMsg] = useState('')
 
-  // Muat film ketika genre dipilih
   useEffect(() => {
     if (!selectedGenre) {
       setGenreMovies([])
@@ -134,7 +135,6 @@ export default function GenresPage({ onSelectMovie, onEditMovie }) {
           <ArrowLeft size={18} /> Kembali ke Semua Genre
         </button>
 
-        {/* Genre Hero */}
         <section
           className="catalog-masthead"
           style={{
@@ -151,7 +151,6 @@ export default function GenresPage({ onSelectMovie, onEditMovie }) {
           </div>
         </section>
 
-        {/* Quick Switch Genre Pills */}
         <div className="adv-filter">
           <div className="adv-filter__search">
             <Search size={18} className="adv-filter__icon" />
@@ -212,8 +211,8 @@ export default function GenresPage({ onSelectMovie, onEditMovie }) {
             <Film size={36} color="#495a74" />
             <h3>Belum ada film di genre {selectedGenre.name}</h3>
             <p>
-              Tambahkan film baru dengan mencantumkan genre &ldquo;{selectedGenre.name}&rdquo; agar
-              muncul di halaman ini.
+              Belum ada tayangan dengan genre &ldquo;{selectedGenre.name}&rdquo; di katalog saat
+              ini.
             </p>
           </div>
         ) : (
@@ -223,7 +222,7 @@ export default function GenresPage({ onSelectMovie, onEditMovie }) {
                 key={movie.id}
                 movie={movie}
                 onSelect={onSelectMovie}
-                onEdit={onEditMovie}
+                onEdit={isAdmin ? onEditMovie : undefined}
               />
             ))}
           </ul>
@@ -232,7 +231,7 @@ export default function GenresPage({ onSelectMovie, onEditMovie }) {
     )
   }
 
-  // ---- Tampilan Utama Daftar Genre ----
+  // ---- Tampilan Utama Daftar Genre dengan Poster Kolase Film Terkait ----
   return (
     <div className="genres-page">
       <section className="catalog-masthead">
@@ -243,8 +242,8 @@ export default function GenresPage({ onSelectMovie, onEditMovie }) {
           </div>
           <h1 className="masthead-title">Genre Film &amp; Drama</h1>
           <p className="masthead-desc">
-            Temukan tontonan berdasarkan genre kesukaan Anda — mulai dari Romance, Sci-Fi,
-            Thriller, hingga Animation. Klik kartu genre untuk menampilkan seluruh film yang sesuai.
+            Temukan tontonan berdasarkan genre favorit Anda. Setiap kartu menampilkan kolase poster
+            film pilihan dari genre terkait — klik untuk melihat seluruh daftarnya.
           </p>
         </div>
       </section>
@@ -273,29 +272,32 @@ export default function GenresPage({ onSelectMovie, onEditMovie }) {
           </span>
         </div>
 
-        <button
-          type="button"
-          className="btn btn--primary btn--sm"
-          onClick={() => setShowAddForm((prev) => !prev)}
-        >
-          {showAddForm ? (
-            <>
-              <X size={16} /> Tutup Form
-            </>
-          ) : (
-            <>
-              <Plus size={16} /> Tambah Genre
-            </>
-          )}
-        </button>
+        {isAdmin && (
+          <button
+            type="button"
+            className="btn btn--primary btn--sm"
+            onClick={() => setShowAddForm((prev) => !prev)}
+          >
+            {showAddForm ? (
+              <>
+                <X size={16} /> Tutup Form
+              </>
+            ) : (
+              <>
+                <Plus size={16} /> Tambah Genre
+              </>
+            )}
+          </button>
+        )}
       </div>
 
-      {/* Inline Add Genre Form */}
-      {showAddForm && (
+      {/* Inline Add Genre Form (Admin Only) */}
+      {isAdmin && showAddForm && (
         <form onSubmit={handleCreateGenre} className="form-card" style={{ marginBottom: '22px' }}>
           <h3 className="form-card__title">Tambah Genre Baru</h3>
           <p className="form-card__desc">
-            Genre baru akan tersimpan di database dan otomatis menyaring film yang cocok.
+            Genre baru akan tersimpan di database dan otomatis mengambil poster dari film yang
+            cocok.
           </p>
 
           <div className="form-grid">
@@ -360,7 +362,6 @@ export default function GenresPage({ onSelectMovie, onEditMovie }) {
         </form>
       )}
 
-      {/* Search Genre */}
       <div className="adv-filter">
         <div className="adv-filter__search">
           <Search size={18} className="adv-filter__icon" />
@@ -384,7 +385,7 @@ export default function GenresPage({ onSelectMovie, onEditMovie }) {
         <div className="status-state">
           <Tag size={36} color="#495a74" />
           <h3>Genre tidak ditemukan</h3>
-          <p>Coba kata kunci lain atau tambahkan genre baru.</p>
+          <p>Coba kata kunci lain.</p>
         </div>
       ) : (
         <ul className="genres-grid">
@@ -400,11 +401,10 @@ export default function GenresPage({ onSelectMovie, onEditMovie }) {
                 onClick={() => setSelectedGenre(genre)}
               >
                 <div className="genre-card__cover-wrap">
-                  <img
-                    src={genre.cover_url}
+                  <PosterCollage
+                    posters={genre.sample_posters}
+                    fallbackUrl={genre.cover_url}
                     alt={genre.name}
-                    className="genre-card__cover"
-                    loading="lazy"
                   />
                   <div className="genre-card__gradient" />
                   <span className="genre-card__count">

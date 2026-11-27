@@ -2,18 +2,20 @@ import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
 import { isSupabaseConfigured } from "./config/supabaseClient.js";
+import authRoutes from "./routes/authRoutes.js";
 import categoryRoutes from "./routes/categoryRoutes.js";
 import genreRoutes from "./routes/genreRoutes.js";
 import movieRoutes from "./routes/movieRoutes.js";
+import episodeRoutes from "./routes/episodeRoutes.js";
 import marathonRoutes from "./routes/marathonRoutes.js";
 import reviewRoutes from "./routes/reviewRoutes.js";
 import watchlistRoutes from "./routes/watchlistRoutes.js";
+import historyRoutes from "./routes/historyRoutes.js";
 
 dotenv.config();
 
 const app = express();
 
-// Middleware CORS agar PWA frontend (localhost / Vercel) dapat mengakses API
 app.use(cors());
 app.use(express.json({ limit: "10mb" }));
 
@@ -21,18 +23,20 @@ app.use(express.json({ limit: "10mb" }));
 app.get("/", (req, res) => {
   res.json({
     service: "Movie Marathon RESTful API",
-    version: "1.0.0",
-    description: "Web Service Backend untuk Tugas Akhir Praktikum PPB (Modul 1 Express.js + Supabase)",
+    version: "2.0.0",
+    description: "Web Service Backend Movie Marathon (Express.js + Supabase PostgreSQL)",
     database_configured: isSupabaseConfigured,
     endpoints: {
+      auth: "/api/auth (POST /register, POST /login, GET /me, PUT /profile, GET /users)",
       categories: "/api/categories",
       genres: "/api/genres",
       movies: "/api/movies",
-      marathons: "/api/marathons",
-      reviews: "/api/reviews",
-      reviewsByMovie: "/api/reviews/movie/:movieId",
-      watchlist: "/api/watchlist?user_identifier=<uuid>",
-      toggleWatchlist: "POST /api/watchlist/toggle",
+      trendingTop10: "/api/movies/trending",
+      episodes: "/api/episodes/movie/:movieId",
+      collections: "/api/marathons (+ POST/DELETE /:id/movies)",
+      reviews: "/api/reviews & /api/reviews/movie/:movieId",
+      watchlist: "/api/watchlist (auth required)",
+      watchHistory: "/api/history (auth required)",
     },
   });
 });
@@ -40,18 +44,22 @@ app.get("/", (req, res) => {
 app.get("/api/health", (req, res) => {
   res.json({
     status: "ok",
+    version: "2.0.0",
     database_configured: isSupabaseConfigured,
     timestamp: new Date().toISOString(),
   });
 });
 
-// Register Modul 1 RESTful API Routes
+// Register RESTful API Routes
+app.use("/api/auth", authRoutes);
 app.use("/api/categories", categoryRoutes);
 app.use("/api/genres", genreRoutes);
 app.use("/api/movies", movieRoutes);
+app.use("/api/episodes", episodeRoutes);
 app.use("/api/marathons", marathonRoutes);
 app.use("/api/reviews", reviewRoutes);
 app.use("/api/watchlist", watchlistRoutes);
+app.use("/api/history", historyRoutes);
 
 // 404 Handler
 app.use((req, res) => {
@@ -60,7 +68,6 @@ app.use((req, res) => {
   });
 });
 
-// Start local server (Vercel serverless akan langsung mengekspor `app`)
 const port = process.env.PORT || 3000;
 if (!process.env.VERCEL) {
   app.listen(port, () => {

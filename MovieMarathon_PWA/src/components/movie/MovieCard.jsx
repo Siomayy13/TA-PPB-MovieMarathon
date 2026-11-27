@@ -1,10 +1,17 @@
 import { useState, useEffect } from 'react'
-import { Star, Edit2, Trash2, CheckCircle2 } from 'lucide-react'
+import { Star, Edit2, Trash2, CheckCircle2, Flame, Clock, Tv } from 'lucide-react'
 import WatchlistButton from '../common/WatchlistButton'
 import watchProgressService from '../../services/watchProgressService'
-import { formatRating, truncate } from '../../utils/helpers'
+import { formatRating, formatUploadTime, truncate } from '../../utils/helpers'
 
-export default function MovieCard({ movie, onSelect, onEdit, onDelete }) {
+export default function MovieCard({
+  movie,
+  onSelect,
+  onEdit,
+  onDelete,
+  trendingRank = null,
+  showUploadMeta = false,
+}) {
   const [progress, setProgress] = useState(() =>
     watchProgressService.getProgress(movie.id, movie.duration),
   )
@@ -20,6 +27,14 @@ export default function MovieCard({ movie, onSelect, onEdit, onDelete }) {
     movie.image_url ||
     movie.image ||
     'https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?w=800&auto=format&fit=crop&q=80'
+
+  const hasRating = Number(movie.rating) > 0
+  const uploadTimestamp =
+    movie.latest_episode_uploaded_at ||
+    movie.latest_upload_at ||
+    movie.createdAt ||
+    movie.created_at
+  const formattedUpload = showUploadMeta ? formatUploadTime(uploadTimestamp) : ''
 
   return (
     <li className="movie-card">
@@ -40,7 +55,17 @@ export default function MovieCard({ movie, onSelect, onEdit, onDelete }) {
             className="movie-card__poster"
             loading="lazy"
           />
-          <div className="movie-card__badge-type">{movie.type || 'Movie'}</div>
+          {trendingRank ? (
+            <div className="movie-card__rank-badge">
+              <Flame size={11} /> #{trendingRank}
+            </div>
+          ) : showUploadMeta && movie.latest_episode_number ? (
+            <div className="movie-card__eps-badge">
+              <Tv size={11} /> Eps {movie.latest_episode_number}
+            </div>
+          ) : (
+            <div className="movie-card__badge-type">{movie.type || 'Movie'}</div>
+          )}
           <div
             className={`movie-card__status-badge ${
               movie.status === 'Ongoing'
@@ -52,7 +77,13 @@ export default function MovieCard({ movie, onSelect, onEdit, onDelete }) {
           </div>
           <div className="movie-card__rating-badge">
             <Star size={13} fill="#e5a93c" stroke="#e5a93c" />
-            <span>{formatRating(movie.rating)}</span>
+            <span>
+              {trendingRank && Number(movie.review_count) > 0
+                ? `${Number(movie.average_review_rating || 0).toFixed(1)} (${movie.review_count})`
+                : hasRating
+                  ? formatRating(movie.rating)
+                  : 'Baru'}
+            </span>
           </div>
         </div>
 
@@ -65,6 +96,25 @@ export default function MovieCard({ movie, onSelect, onEdit, onDelete }) {
             <span>{movie.duration || 'Feature'}</span>
           </div>
           <p className="movie-card__genre">{movie.genre || 'Drama'}</p>
+
+          {/* Detail Episode & Waktu Upload khusus di bagian "Baru Saja Di-upload" */}
+          {showUploadMeta && (
+            <div className="movie-card__upload-meta">
+              <span className="upload-meta__ep">
+                {movie.latest_episode_number
+                  ? `Eps ${movie.latest_episode_number}`
+                  : movie.type === 'Movie'
+                    ? 'Film Penuh'
+                    : 'Baru Up'}
+              </span>
+              {formattedUpload && (
+                <span className="upload-meta__time">
+                  <Clock size={11} /> {formattedUpload}
+                </span>
+              )}
+            </div>
+          )}
+
           {movie.description && (
             <p className="movie-card__desc">{truncate(movie.description, 80)}</p>
           )}

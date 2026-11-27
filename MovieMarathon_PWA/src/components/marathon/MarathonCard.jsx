@@ -1,8 +1,13 @@
-import { Clock, Film, Layers, Sparkles, Trash2, ChevronRight } from 'lucide-react'
+import { Clock, Film, Layers, Sparkles, Edit2, Trash2, ChevronRight } from 'lucide-react'
+import PosterCollage from '../common/PosterCollage'
 import { truncate } from '../../utils/helpers'
 
-export default function MarathonCard({ marathon, onSelect, onDelete }) {
+export default function MarathonCard({ marathon, onSelect, onEdit, onDelete }) {
   const movieCount = marathon.movie_count ?? marathon.movies?.length ?? 0
+  const posters =
+    Array.isArray(marathon.sample_posters) && marathon.sample_posters.length > 0
+      ? marathon.sample_posters
+      : (marathon.movies || []).map((m) => m.image_url).filter(Boolean).slice(0, 4)
 
   return (
     <li className="marathon-card">
@@ -19,12 +24,7 @@ export default function MarathonCard({ marathon, onSelect, onDelete }) {
         }}
       >
         <div className="marathon-card__cover-wrap">
-          <img
-            src={marathon.cover_url}
-            alt={marathon.title}
-            className="marathon-card__cover"
-            loading="lazy"
-          />
+          <PosterCollage posters={posters} fallbackUrl={marathon.cover_url} alt={marathon.title} />
           <div className="marathon-card__overlay" />
           <span className="diff-badge diff-badge--collection">
             <Layers size={12} /> Collection
@@ -60,19 +60,38 @@ export default function MarathonCard({ marathon, onSelect, onDelete }) {
         </div>
       </div>
 
-      {onDelete && (
-        <button
-          type="button"
-          className="marathon-card__delete-btn"
-          onClick={(e) => {
-            e.stopPropagation()
-            onDelete(marathon)
-          }}
-          title="Hapus Collection"
-          aria-label={`Hapus ${marathon.title}`}
-        >
-          <Trash2 size={14} />
-        </button>
+      {/* Admin floating action buttons */}
+      {(onEdit || onDelete) && (
+        <div className="marathon-card__admin-actions">
+          {onEdit && (
+            <button
+              type="button"
+              className="movie-card__act-btn"
+              onClick={(e) => {
+                e.stopPropagation()
+                onEdit(marathon)
+              }}
+              title="Edit Collection & Kelola Film"
+              aria-label={`Edit ${marathon.title}`}
+            >
+              <Edit2 size={14} />
+            </button>
+          )}
+          {onDelete && (
+            <button
+              type="button"
+              className="movie-card__act-btn movie-card__act-btn--danger"
+              onClick={(e) => {
+                e.stopPropagation()
+                onDelete(marathon)
+              }}
+              title="Hapus Collection"
+              aria-label={`Hapus ${marathon.title}`}
+            >
+              <Trash2 size={14} />
+            </button>
+          )}
+        </div>
       )}
     </li>
   )

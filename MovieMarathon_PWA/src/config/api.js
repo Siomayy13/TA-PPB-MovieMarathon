@@ -1,26 +1,33 @@
 import axios from 'axios'
 
-// ---------------------------------------------------------------------------
-// Custom Express RESTful API Configuration (Modul 1 + Tugas Akhir PPB)
-// Membaca VITE_API_BASE_URL dari .env (misal: http://localhost:3000/api
-// atau https://movie-marathon-api.vercel.app/api)
-// ---------------------------------------------------------------------------
 const RAW_BASE_URL = (import.meta.env.VITE_API_BASE_URL || '').trim()
 const BASE_URL = RAW_BASE_URL.replace(/\/+$/, '')
 
-if (!BASE_URL) {
-  console.info(
-    '[MovieMarathon] VITE_API_BASE_URL belum disetel. Aplikasi berjalan pada mode cache offline PWA.',
-  )
-}
+export const AUTH_TOKEN_KEY = 'movie_marathon_auth_token'
 
 const apiClient = axios.create({
   baseURL: BASE_URL,
   headers: {
     'Content-Type': 'application/json',
   },
-  timeout: 8000,
+  timeout: 10000,
 })
+
+// Request interceptor — otomatis lampirkan Bearer token jika user sudah login
+apiClient.interceptors.request.use(
+  (config) => {
+    try {
+      const token = localStorage.getItem(AUTH_TOKEN_KEY)
+      if (token) {
+        config.headers.Authorization = `Bearer ${token}`
+      }
+    } catch {
+      // ignore storage error
+    }
+    return config
+  },
+  (error) => Promise.reject(error),
+)
 
 // Response interceptor — unwrap data & normalisasi pesan error
 apiClient.interceptors.response.use(
@@ -47,9 +54,6 @@ apiClient.interceptors.response.use(
   },
 )
 
-/**
- * Cek koneksi ke endpoint /health pada Custom Express API
- */
 export async function checkApiHealth() {
   if (!BASE_URL) {
     return {
